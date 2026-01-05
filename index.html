@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Learn Vibe Build — Build with AI. Ship something real.</title>
+    <meta name="description" content="A 4-week cohort for creatives ready to become builders. Learn to use AI as a creative collaborator and ship a real project.">
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        midnight: '#0a0a0f',
+                        charcoal: '#12121a',
+                        slate: '#1a1a24',
+                        accent: '#6366f1',
+                        accentLight: '#818cf8',
+                        glow: '#4f46e5',
+                    },
+                    fontFamily: {
+                        mono: ['JetBrains Mono', 'Fira Code', 'monospace'],
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            background-color: #0a0a0f;
+        }
+        .gradient-text {
+            background: linear-gradient(135deg, #6366f1 0%, #a855f7 50%, #6366f1 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .glow-box {
+            box-shadow: 0 0 60px rgba(99, 102, 241, 0.15);
+        }
+        .card {
+            background: linear-gradient(180deg, rgba(26, 26, 36, 0.8) 0%, rgba(18, 18, 26, 0.9) 100%);
+            border: 1px solid rgba(99, 102, 241, 0.1);
+        }
+        .card:hover {
+            border-color: rgba(99, 102, 241, 0.3);
+        }
+        .terminal {
+            background: #0d0d12;
+            border: 1px solid rgba(99, 102, 241, 0.2);
+        }
+        .cursor-blink {
+            animation: blink 1s infinite;
+        }
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0; }
+        }
+    </style>
+</head>
+<body class="font-sans text-gray-300 antialiased">
+
+    <!-- Hero -->
+    <section class="min-h-screen flex flex-col justify-center px-6 py-20">
+        <div class="max-w-4xl mx-auto text-center">
+            <!-- Logo/Name -->
+            <div class="mb-8">
+                <span class="font-mono text-sm text-accent tracking-wider">// learnvibe.build</span>
+            </div>
+
+            <!-- Headline -->
+            <h1 class="text-5xl md:text-7xl font-bold text-white mb-6 leading-tight">
+                Build with AI.<br>
+                <span class="gradient-text">Ship something real.</span>
+            </h1>
+
+            <!-- Subhead -->
+            <p class="text-xl md:text-2xl text-gray-400 mb-8 max-w-2xl mx-auto">
+                A 4-week cohort for creatives ready to become builders.
+            </p>
+
+            <!-- Terminal preview -->
+            <div class="terminal rounded-lg p-4 md:p-6 max-w-xl mx-auto mb-10 text-left font-mono text-sm">
+                <div class="flex items-center gap-2 mb-4">
+                    <div class="w-3 h-3 rounded-full bg-red-500/80"></div>
+                    <div class="w-3 h-3 rounded-full bg-yellow-500/80"></div>
+                    <div class="w-3 h-3 rounded-full bg-green-500/80"></div>
+                </div>
+                <div class="text-gray-500">$ claude</div>
+                <div class="text-accent mt-1">> What do you want to build?</div>
+                <div class="text-white mt-1">I have an idea...<span class="cursor-blink">|</span></div>
+            </div>
+
+            <!-- CTA -->
+            <div class="flex flex-col sm:flex-row gap-4 justify-center items-center">
+                <a href="#apply" class="bg-accent hover:bg-accentLight text-white font-semibold px-8 py-4 rounded-lg transition-all duration-200 hover:shadow-lg hover:shadow-accent/25">
+                    Apply Now
+                </a>
+                <span class="text-gray-500 text-sm">Deadline: January 15, 2026</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- What It Is -->
+    <section class="px-6 py-20 border-t border-slate">
+        <div class="max-w-4xl mx-auto">
+            <h2 class="font-mono text-accent text-sm mb-4">// what_it_is</h2>
+            <h3 class="text-3xl md:text-4xl font-bold text-white mb-8">Not a bootcamp. A build dojo.</h3>
+
+            <div class="grid md:grid-cols-2 gap-6">
+                <div class="card rounded-lg p-6 transition-all duration-200">
+                    <div class="text-2xl mb-3">4 weeks</div>
+                    <p class="text-gray-400">Weekly live sessions + office hours. Enough structure to keep momentum, enough space to explore.</p>
+                </div>
+                <div class="card rounded-lg p-6 transition-all duration-200">
+                    <div class="text-2xl mb-3">Ship something</div>
+                    <p class="text-gray-400">You'll leave with a real project — not a certificate. Demo day at the end to show what you built.</p>
+                </div>
+                <div class="card rounded-lg p-6 transition-all duration-200">
+                    <div class="text-2xl mb-3">Community</div>
+                    <p class="text-gray-400">Discord for async support, peer feedback, and staying connected after the cohort ends.</p>
+                </div>
+                <div class="card rounded-lg p-6 transition-all duration-200">
+                    <div class="text-2xl mb-3">ETHBoulder</div>
+                    <p class="text-gray-400">Culminates Feb 13. Demo your project at the hackathon. 50% off tickets for participants.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Who It's For -->
+    <section class="px-6 py-20 border-t border-slate">
+        <div class="max-w-4xl mx-auto">
+            <h2 class="font-mono text-accent text-sm mb-4">// who_its_for</h2>
+            <h3 class="text-3xl md:text-4xl font-bold text-white mb-8">You don't need to be "technical"</h3>
+
+            <div class="space-y-4 text-lg">
+                <p class="flex items-start gap-3">
+                    <span class="text-accent mt-1">→</span>
+                    <span><strong class="text-white">Creatives</strong> who have ideas but haven't built them yet</span>
+                </p>
+                <p class="flex items-start gap-3">
+                    <span class="text-accent mt-1">→</span>
+                    <span><strong class="text-white">Curious people</strong> who want to understand what AI can actually do</span>
+                </p>
+                <p class="flex items-start gap-3">
+                    <span class="text-accent mt-1">→</span>
+                    <span><strong class="text-white">Doers</strong> who learn by making, not watching tutorials</span>
+                </p>
+                <p class="flex items-start gap-3">
+                    <span class="text-accent mt-1">→</span>
+                    <span><strong class="text-white">Anyone</strong> who's felt like "I'm not a developer" but wants to build anyway</span>
+                </p>
+            </div>
+
+            <p class="mt-8 text-gray-400 text-lg">
+                The only prerequisite is motivation. If you're ready to experiment, you're ready.
+            </p>
+        </div>
+    </section>
+
+    <!-- The Journey -->
+    <section class="px-6 py-20 border-t border-slate">
+        <div class="max-w-4xl mx-auto">
+            <h2 class="font-mono text-accent text-sm mb-4">// the_journey</h2>
+            <h3 class="text-3xl md:text-4xl font-bold text-white mb-10">4 weeks. Idea to artifact.</h3>
+
+            <div class="space-y-6">
+                <div class="card rounded-lg p-6 flex gap-6 items-start transition-all duration-200">
+                    <div class="font-mono text-accent text-xl font-bold shrink-0">01</div>
+                    <div>
+                        <h4 class="text-xl font-semibold text-white mb-2">Orientation & Play</h4>
+                        <p class="text-gray-400">Get set up with Claude Code. Explore what's possible. No pressure — just play.</p>
+                    </div>
+                </div>
+                <div class="card rounded-lg p-6 flex gap-6 items-start transition-all duration-200">
+                    <div class="font-mono text-accent text-xl font-bold shrink-0">02</div>
+                    <div>
+                        <h4 class="text-xl font-semibold text-white mb-2">Seeds & Prompts</h4>
+                        <p class="text-gray-400">Pick an idea. Start building something small. Learn to give AI rich context.</p>
+                    </div>
+                </div>
+                <div class="card rounded-lg p-6 flex gap-6 items-start transition-all duration-200">
+                    <div class="font-mono text-accent text-xl font-bold shrink-0">03</div>
+                    <div>
+                        <h4 class="text-xl font-semibold text-white mb-2">Iteration & Craft</h4>
+                        <p class="text-gray-400">Go deeper. Get feedback from peers. Refine your project.</p>
+                    </div>
+                </div>
+                <div class="card rounded-lg p-6 flex gap-6 items-start transition-all duration-200">
+                    <div class="font-mono text-accent text-xl font-bold shrink-0">04</div>
+                    <div>
+                        <h4 class="text-xl font-semibold text-white mb-2">Ship & Celebrate</h4>
+                        <p class="text-gray-400">Deploy your project. Demo day. Share it with the world.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- The Vibe -->
+    <section class="px-6 py-20 border-t border-slate">
+        <div class="max-w-4xl mx-auto text-center">
+            <h2 class="font-mono text-accent text-sm mb-4">// the_vibe</h2>
+
+            <blockquote class="text-2xl md:text-3xl text-white font-medium leading-relaxed mb-8">
+                "The question isn't finding 'the answer' — it's staying curious long enough to create something real."
+            </blockquote>
+
+            <div class="flex flex-wrap justify-center gap-3 text-sm font-mono">
+                <span class="px-4 py-2 rounded-full bg-slate text-gray-300">AI as collaborator</span>
+                <span class="px-4 py-2 rounded-full bg-slate text-gray-300">play before polish</span>
+                <span class="px-4 py-2 rounded-full bg-slate text-gray-300">ship artifacts</span>
+                <span class="px-4 py-2 rounded-full bg-slate text-gray-300">community of practice</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- What You Get -->
+    <section class="px-6 py-20 border-t border-slate">
+        <div class="max-w-4xl mx-auto">
+            <h2 class="font-mono text-accent text-sm mb-4">// what_you_get</h2>
+            <h3 class="text-3xl md:text-4xl font-bold text-white mb-10">Everything you need to ship</h3>
+
+            <div class="grid md:grid-cols-2 gap-4 text-lg">
+                <div class="flex items-center gap-3 p-4">
+                    <span class="text-accent">✓</span>
+                    <span>4 live sessions (90 min each)</span>
+                </div>
+                <div class="flex items-center gap-3 p-4">
+                    <span class="text-accent">✓</span>
+                    <span>8 office hours (drop-in support)</span>
+                </div>
+                <div class="flex items-center gap-3 p-4">
+                    <span class="text-accent">✓</span>
+                    <span>Discord community access</span>
+                </div>
+                <div class="flex items-center gap-3 p-4">
+                    <span class="text-accent">✓</span>
+                    <span>Demo day to showcase your work</span>
+                </div>
+                <div class="flex items-center gap-3 p-4">
+                    <span class="text-accent">✓</span>
+                    <span>Recorded sessions for review</span>
+                </div>
+                <div class="flex items-center gap-3 p-4">
+                    <span class="text-accent">✓</span>
+                    <span>50% off ETHBoulder tickets</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Cost -->
+    <section class="px-6 py-20 border-t border-slate">
+        <div class="max-w-4xl mx-auto">
+            <h2 class="font-mono text-accent text-sm mb-4">// investment</h2>
+
+            <div class="glow-box card rounded-xl p-8 md:p-12 text-center">
+                <div class="text-5xl md:text-6xl font-bold text-white mb-4">$100</div>
+                <p class="text-gray-400 mb-6">+ Claude Pro subscription ($20/month)</p>
+
+                <div class="border-t border-slate pt-6 mt-6">
+                    <p class="text-sm text-gray-500">
+                        Limited to 25 participants · Applications close January 15
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Apply -->
+    <section id="apply" class="px-6 py-20 border-t border-slate">
+        <div class="max-w-2xl mx-auto text-center">
+            <h2 class="font-mono text-accent text-sm mb-4">// apply</h2>
+            <h3 class="text-3xl md:text-4xl font-bold text-white mb-6">Ready to build?</h3>
+            <p class="text-gray-400 mb-10">
+                Fill out a quick application. We'll get back to you within a few days.
+            </p>
+
+            <!-- Tally Form Embed -->
+            <div class="card rounded-xl p-8">
+                <!-- Replace this with your Tally embed code -->
+                <div class="text-center py-12">
+                    <p class="text-gray-500 mb-4">Application form loading...</p>
+                    <p class="text-sm text-gray-600">
+                        If the form doesn't appear,
+                        <a href="https://tally.so" target="_blank" class="text-accent hover:underline">click here to apply</a>
+                    </p>
+                </div>
+                <!--
+                    TALLY EMBED INSTRUCTIONS:
+                    1. Create your form at tally.so
+                    2. Click "Share" → "Embed"
+                    3. Copy the embed code
+                    4. Replace the div above with the embed code
+
+                    Example:
+                    <iframe data-tally-src="https://tally.so/embed/YOURFORMID?alignLeft=1&hideTitle=1&transparentBackground=1"
+                            loading="lazy" width="100%" height="500" frameborder="0" marginheight="0" marginwidth="0"
+                            title="Learn Vibe Build Application"></iframe>
+                    <script>var d=document,w="https://tally.so/widgets/embed.js",v=function(){"undefined"!=typeof Tally?Tally.loadEmbeds():d.querySelectorAll("iframe[data-tally-src]:not([src])").forEach((function(e){e.src=e.dataset.tallySrc}))};if("undefined"!=typeof Tally)v();else if(d.querySelector('script[src="'+w+'"]')==null){var s=d.createElement("script");s.src=w,s.onload=v,s.onerror=v,d.body.appendChild(s)}</script>
+                -->
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="px-6 py-12 border-t border-slate">
+        <div class="max-w-4xl mx-auto text-center">
+            <p class="text-gray-500 text-sm mb-4">
+                Built by <a href="#" class="text-gray-400 hover:text-white">Aaron Gabriel</a> & <a href="#" class="text-gray-400 hover:text-white">Kevin Olsen</a>
+            </p>
+            <p class="text-gray-600 text-sm">
+                Supported by RegenHub & Gitcoin
+            </p>
+        </div>
+    </footer>
+
+</body>
+</html>
