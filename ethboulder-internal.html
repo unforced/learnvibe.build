@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Vibe Coding Track — Internal Coordination</title>
+    <meta name="robots" content="noindex, nofollow">
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        midnight: '#0a0a0f',
+                        charcoal: '#12121a',
+                        slate: '#1a1a24',
+                        accent: '#6366f1',
+                        accentLight: '#818cf8',
+                        emerald: '#10b981',
+                        amber: '#f59e0b',
+                    },
+                    fontFamily: {
+                        mono: ['JetBrains Mono', 'Fira Code', 'monospace'],
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            background-color: #0a0a0f;
+        }
+        .card {
+            background: linear-gradient(180deg, rgba(26, 26, 36, 0.8) 0%, rgba(18, 18, 26, 0.9) 100%);
+            border: 1px solid rgba(99, 102, 241, 0.15);
+        }
+        .status-open {
+            background: rgba(245, 158, 11, 0.1);
+            border-color: rgba(245, 158, 11, 0.3);
+        }
+        .status-decided {
+            background: rgba(16, 185, 129, 0.1);
+            border-color: rgba(16, 185, 129, 0.3);
+        }
+    </style>
+</head>
+<body class="font-sans text-gray-300 antialiased">
+
+    <!-- Nav -->
+    <nav class="px-6 py-4 border-b border-slate">
+        <div class="max-w-4xl mx-auto flex justify-between items-center">
+            <a href="ethboulder.html" class="font-mono text-sm text-gray-400 hover:text-white">← Public page</a>
+            <span class="font-mono text-sm text-amber">🔒 Internal</span>
+        </div>
+    </nav>
+
+    <!-- Header -->
+    <section class="px-6 py-12 border-b border-slate">
+        <div class="max-w-4xl mx-auto">
+            <div class="mb-4">
+                <span class="inline-block px-3 py-1 rounded-full bg-amber/10 text-amber text-xs font-mono">
+                    INTERNAL COORDINATION
+                </span>
+            </div>
+            <h1 class="text-3xl md:text-4xl font-bold text-white mb-4">
+                AI Vibe Coding Track — Organizer Hub
+            </h1>
+            <p class="text-gray-400">
+                ETH Boulder 2026 · February 13-15 · Regen Hub
+            </p>
+        </div>
+    </section>
+
+    <!-- Team -->
+    <section class="px-6 py-12 border-b border-slate">
+        <div class="max-w-4xl mx-auto">
+            <h2 class="font-mono text-accent text-sm mb-4">// core_team</h2>
+
+            <div class="overflow-x-auto">
+                <table class="w-full text-left">
+                    <thead>
+                        <tr class="border-b border-slate text-gray-500 text-sm">
+                            <th class="py-3 pr-4">Person</th>
+                            <th class="py-3 pr-4">Role</th>
+                            <th class="py-3 pr-4">Focus</th>
+                            <th class="py-3">Contact</th>
+                        </tr>
+                    </thead>
+                    <tbody class="text-sm">
+                        <tr class="border-b border-slate/50">
+                            <td class="py-3 pr-4 font-medium text-white">Aaron Gabriel</td>
+                            <td class="py-3 pr-4 text-emerald">Track Lead</td>
+                            <td class="py-3 pr-4">Coordination, programming, facilitation</td>
+                            <td class="py-3 text-gray-500">Telegram</td>
+                        </tr>
+                        <tr class="border-b border-slate/50">
+                            <td class="py-3 pr-4 font-medium text-white">Thom</td>
+                            <td class="py-3 pr-4 text-accent">Collaborator</td>
+                            <td class="py-3 pr-4">Activation design, bounty systems</td>
+                            <td class="py-3 text-gray-500">Telegram</td>
+                        </tr>
+                        <tr class="border-b border-slate/50">
+                            <td class="py-3 pr-4 font-medium text-white">Jon Bo</td>
+                            <td class="py-3 pr-4 text-gray-400">Support</td>
+                            <td class="py-3 pr-4">Parachute co-founder, teaching</td>
+                            <td class="py-3 text-gray-500">—</td>
+                        </tr>
+                        <tr class="border-b border-slate/50">
+                            <td class="py-3 pr-4 font-medium text-white">Lucian Hymer</td>
+                            <td class="py-3 pr-4 text-gray-400">Support</td>
+                            <td class="py-3 pr-4">Claude Code wizard, agentic stuff</td>
+                            <td class="py-3 text-gray-500">—</td>
+                        </tr>
+                        <tr>
+                            <td class="py-3 pr-4 font-medium text-white">Kevin Owocki</td>
+                            <td class="py-3 pr-4 text-gray-400">Advisor</td>
+                            <td class="py-3 pr-4">Quadratic funding, sponsor relations</td>
+                            <td class="py-3 text-gray-500">—</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+    <!-- Open Questions -->
+    <section class="px-6 py-12 border-b border-slate">
+        <div class="max-w-4xl mx-auto">
+            <h2 class="font-mono text-accent text-sm mb-4">// open_questions</h2>
+            <h3 class="text-2xl font-bold text-white mb-6">Decisions needed</h3>
+
+            <div class="space-y-4">
+                <div class="card status-open rounded-lg p-5">
+                    <div class="flex items-start justify-between gap-4">
+                        <div>
+                            <h4 class="font-semibold text-white mb-2">Bounty structure & mechanics</h4>
+                            <p class="text-gray-400 text-sm mb-3">
+                                How exactly do bounties work? Quadratic voting specifics? Minimum viable version for this event?
+                            </p>
+                            <p class="text-xs text-amber">Needs: Mastermind with Kevin</p>
+                        </div>
+                        <span class="shrink-0 px-2 py-1 rounded text-xs font-mono bg-amber/20 text-amber">OPEN</span>
+                    </div>
+                </div>
+
+                <div class="card status-open rounded-lg p-5">
+                    <div class="flex items-start justify-between gap-4">
+                        <div>
+                            <h4 class="font-semibold text-white mb-2">Concept submission window</h4>
+                            <p class="text-gray-400 text-sm mb-3">
+                                When/how do people submit ideas before the hackathon? What's the process? What tool?
+                            </p>
+                            <p class="text-xs text-amber">Needs: Design decision</p>
+                        </div>
+                        <span class="shrink-0 px-2 py-1 rounded text-xs font-mono bg-amber/20 text-amber">OPEN</span>
+                    </div>
+                </div>
+
+                <div class="card status-open rounded-lg p-5">
+                    <div class="flex items-start justify-between gap-4">
+                        <div>
+                            <h4 class="font-semibold text-white mb-2">Problem board tooling</h4>
+                            <p class="text-gray-400 text-sm mb-3">
+                                How do we capture problems from unconference discussions and surface them to builders?
+                            </p>
+                            <p class="text-xs text-amber">Needs: Tool selection</p>
+                        </div>
+                        <span class="shrink-0 px-2 py-1 rounded text-xs font-mono bg-amber/20 text-amber">OPEN</span>
+                    </div>
+                </div>
+
+                <div class="card status-open rounded-lg p-5">
+                    <div class="flex items-start justify-between gap-4">
+                        <div>
+                            <h4 class="font-semibold text-white mb-2">Phase transition mechanics</h4>
+                            <p class="text-gray-400 text-sm mb-3">
+                                How do we facilitate the STORM → FORM transition? When does it happen? How do projects merge?
+                            </p>
+                            <p class="text-xs text-amber">Needs: Facilitation design</p>
+                        </div>
+                        <span class="shrink-0 px-2 py-1 rounded text-xs font-mono bg-amber/20 text-amber">OPEN</span>
+                    </div>
+                </div>
+
+                <div class="card status-open rounded-lg p-5">
+                    <div class="flex items-start justify-between gap-4">
+                        <div>
+                            <h4 class="font-semibold text-white mb-2">Contribution tracking</h4>
+                            <p class="text-gray-400 text-sm mb-3">
+                                How do we track who contributed to what? GitHub PRs? Something else?
+                            </p>
+                            <p class="text-xs text-amber">Needs: Technical decision</p>
+                        </div>
+                        <span class="shrink-0 px-2 py-1 rounded text-xs font-mono bg-amber/20 text-amber">OPEN</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Decisions Made -->
+    <section class="px-6 py-12 border-b border-slate">
+        <div class="max-w-4xl mx-auto">
+            <h2 class="font-mono text-emerald text-sm mb-4">// decided</h2>
+            <h3 class="text-2xl font-bold text-white mb-6">What we've landed on</h3>
+
+            <div class="space-y-4">
+                <div class="card status-decided rounded-lg p-5">
+                    <div class="flex items-start justify-between gap-4">
+                        <div>
+                            <h4 class="font-semibold text-white mb-2">Two-phase structure</h4>
+                            <p class="text-gray-400 text-sm">
+                                <strong>Phase 1 (STORM):</strong> Pure experimentation, fluid contribution<br>
+                                <strong>Phase 2 (FORM):</strong> Projects consolidate, teams form, bounty eligibility
+                            </p>
+                        </div>
+                        <span class="shrink-0 px-2 py-1 rounded text-xs font-mono bg-emerald/20 text-emerald">DECIDED</span>
+                    </div>
+                </div>
+
+                <div class="card status-decided rounded-lg p-5">
+                    <div class="flex items-start justify-between gap-4">
+                        <div>
+                            <h4 class="font-semibold text-white mb-2">Open source requirement</h4>
+                            <p class="text-gray-400 text-sm">
+                                All bounty-eligible work must be open source. Forkable, remixable, owned by the commons.
+                            </p>
+                        </div>
+                        <span class="shrink-0 px-2 py-1 rounded text-xs font-mono bg-emerald/20 text-emerald">DECIDED</span>
+                    </div>
+                </div>
+
+                <div class="card status-decided rounded-lg p-5">
+                    <div class="flex items-start justify-between gap-4">
+                        <div>
+                            <h4 class="font-semibold text-white mb-2">Emergent scheduling</h4>
+                            <p class="text-gray-400 text-sm">
+                                Don't publish full lineup. Announce specific slots as they're confirmed. Keep flexibility.
+                            </p>
+                        </div>
+                        <span class="shrink-0 px-2 py-1 rounded text-xs font-mono bg-emerald/20 text-emerald">DECIDED</span>
+                    </div>
+                </div>
+
+                <div class="card status-decided rounded-lg p-5">
+                    <div class="flex items-start justify-between gap-4">
+                        <div>
+                            <h4 class="font-semibold text-white mb-2">Coordination channel</h4>
+                            <p class="text-gray-400 text-sm">
+                                Dedicated Telegram group (separate from main ETH Boulder community).
+                            </p>
+                        </div>
+                        <span class="shrink-0 px-2 py-1 rounded text-xs font-mono bg-emerald/20 text-emerald">DECIDED</span>
+                    </div>
+                </div>
+
+                <div class="card status-decided rounded-lg p-5">
+                    <div class="flex items-start justify-between gap-4">
+                        <div>
+                            <h4 class="font-semibold text-white mb-2">LVB integration</h4>
+                            <p class="text-gray-400 text-sm">
+                                Unsolved problems from ETH Boulder become ongoing challenges for Learn Vibe Build cohorts.
+                            </p>
+                        </div>
+                        <span class="shrink-0 px-2 py-1 rounded text-xs font-mono bg-emerald/20 text-emerald">DECIDED</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Action Items -->
+    <section class="px-6 py-12 border-b border-slate">
+        <div class="max-w-4xl mx-auto">
+            <h2 class="font-mono text-accent text-sm mb-4">// action_items</h2>
+            <h3 class="text-2xl font-bold text-white mb-6">What needs to happen</h3>
+
+            <div class="space-y-8">
+                <div>
+                    <h4 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                        <span class="text-amber">⚡</span> This Week
+                    </h4>
+                    <ul class="space-y-2 text-sm">
+                        <li class="flex items-start gap-3">
+                            <input type="checkbox" class="mt-1 accent-emerald">
+                            <span>Create dedicated Telegram group for track coordination</span>
+                        </li>
+                        <li class="flex items-start gap-3">
+                            <input type="checkbox" class="mt-1 accent-emerald">
+                            <span>Share vision summary to center the conversation</span>
+                        </li>
+                        <li class="flex items-start gap-3">
+                            <input type="checkbox" class="mt-1 accent-emerald">
+                            <span>Confirm Thom is in the working group</span>
+                        </li>
+                    </ul>
+                </div>
+
+                <div>
+                    <h4 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                        <span class="text-accent">📅</span> Next 1-2 Weeks
+                    </h4>
+                    <ul class="space-y-2 text-sm">
+                        <li class="flex items-start gap-3">
+                            <input type="checkbox" class="mt-1 accent-emerald">
+                            <span>Schedule Kevin mastermind on bounty/quadratic voting</span>
+                        </li>
+                        <li class="flex items-start gap-3">
+                            <input type="checkbox" class="mt-1 accent-emerald">
+                            <span>Host Zoom call to onboard broader contributors</span>
+                        </li>
+                        <li class="flex items-start gap-3">
+                            <input type="checkbox" class="mt-1 accent-emerald">
+                            <span>Brief Hunt on vision so he can find right sponsors</span>
+                        </li>
+                    </ul>
+                </div>
+
+                <div>
+                    <h4 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                        <span class="text-emerald">🎯</span> Before Feb 13
+                    </h4>
+                    <ul class="space-y-2 text-sm">
+                        <li class="flex items-start gap-3">
+                            <input type="checkbox" class="mt-1 accent-emerald">
+                            <span>Open concept submission window</span>
+                        </li>
+                        <li class="flex items-start gap-3">
+                            <input type="checkbox" class="mt-1 accent-emerald">
+                            <span>Set up problem board system</span>
+                        </li>
+                        <li class="flex items-start gap-3">
+                            <input type="checkbox" class="mt-1 accent-emerald">
+                            <span>Define supporter roles and how to activate them</span>
+                        </li>
+                        <li class="flex items-start gap-3">
+                            <input type="checkbox" class="mt-1 accent-emerald">
+                            <span>Coordinate with Buddhist monastic academy friends (Buddhism & AI dialogue)</span>
+                        </li>
+                        <li class="flex items-start gap-3">
+                            <input type="checkbox" class="mt-1 accent-emerald">
+                            <span>Design STORM kickoff framing</span>
+                        </li>
+                        <li class="flex items-start gap-3">
+                            <input type="checkbox" class="mt-1 accent-emerald">
+                            <span>Design STORM → FORM transition facilitation</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Key Insights -->
+    <section class="px-6 py-12 border-b border-slate bg-charcoal/30">
+        <div class="max-w-4xl mx-auto">
+            <h2 class="font-mono text-accent text-sm mb-4">// key_insights</h2>
+            <h3 class="text-2xl font-bold text-white mb-6">From the Thom conversation</h3>
+
+            <div class="space-y-6 text-gray-300">
+                <blockquote class="border-l-2 border-accent pl-4 italic">
+                    "With AI, you brainstorm by actually creating prototypes."
+                </blockquote>
+
+                <blockquote class="border-l-2 border-emerald pl-4 italic">
+                    "Storming, forming, norming — the first phase of the hackathon is the storm. But then we do want to do the forming."
+                </blockquote>
+
+                <blockquote class="border-l-2 border-amber pl-4 italic">
+                    "Consider it aspirational — maybe we accomplish it this time, maybe not. Don't brag about it until it's actually happening." <span class="text-gray-500">— on participants walking away with more than their ticket price</span>
+                </blockquote>
+
+                <blockquote class="border-l-2 border-purple-400 pl-4 italic">
+                    "A community of practice where you learn together, build together, and get paid for the work you're doing. That's the dream."
+                </blockquote>
+            </div>
+        </div>
+    </section>
+
+    <!-- Links & Resources -->
+    <section class="px-6 py-12">
+        <div class="max-w-4xl mx-auto">
+            <h2 class="font-mono text-accent text-sm mb-4">// resources</h2>
+
+            <div class="grid md:grid-cols-2 gap-4">
+                <a href="ethboulder.html" class="card rounded-lg p-4 hover:border-accent/40 transition-all">
+                    <div class="font-semibold text-white mb-1">Public landing page →</div>
+                    <p class="text-gray-500 text-sm">Share this with potential participants</p>
+                </a>
+                <a href="https://ethboulder.xyz" target="_blank" class="card rounded-lg p-4 hover:border-accent/40 transition-all">
+                    <div class="font-semibold text-white mb-1">ETH Boulder main site →</div>
+                    <p class="text-gray-500 text-sm">The broader event</p>
+                </a>
+                <a href="index.html" class="card rounded-lg p-4 hover:border-accent/40 transition-all">
+                    <div class="font-semibold text-white mb-1">Learn Vibe Build →</div>
+                    <p class="text-gray-500 text-sm">The connected 4-week cohort</p>
+                </a>
+                <a href="https://lu.ma/o9qpeepn" target="_blank" class="card rounded-lg p-4 hover:border-accent/40 transition-all">
+                    <div class="font-semibold text-white mb-1">ETH Boulder registration →</div>
+                    <p class="text-gray-500 text-sm">Luma event page</p>
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="px-6 py-8 border-t border-slate">
+        <div class="max-w-4xl mx-auto text-center">
+            <p class="text-gray-600 text-sm">
+                Last updated: January 5, 2026 · This page is not indexed
+            </p>
+        </div>
+    </footer>
+
+</body>
+</html>

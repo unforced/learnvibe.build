@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Vibe Coding Track — ETH Boulder 2026</title>
+    <meta name="description" content="A new kind of hackathon track. Co-learn, co-build, and flow between projects in the age of AI.">
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        midnight: '#0a0a0f',
+                        charcoal: '#12121a',
+                        slate: '#1a1a24',
+                        accent: '#6366f1',
+                        accentLight: '#818cf8',
+                        glow: '#4f46e5',
+                        emerald: '#10b981',
+                    },
+                    fontFamily: {
+                        mono: ['JetBrains Mono', 'Fira Code', 'monospace'],
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            background-color: #0a0a0f;
+        }
+        .gradient-text {
+            background: linear-gradient(135deg, #10b981 0%, #6366f1 50%, #a855f7 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .glow-box {
+            box-shadow: 0 0 60px rgba(16, 185, 129, 0.15);
+        }
+        .card {
+            background: linear-gradient(180deg, rgba(26, 26, 36, 0.8) 0%, rgba(18, 18, 26, 0.9) 100%);
+            border: 1px solid rgba(16, 185, 129, 0.1);
+        }
+        .card:hover {
+            border-color: rgba(16, 185, 129, 0.3);
+        }
+        .thread-card {
+            background: linear-gradient(180deg, rgba(26, 26, 36, 0.8) 0%, rgba(18, 18, 26, 0.9) 100%);
+            border: 1px solid rgba(99, 102, 241, 0.15);
+        }
+    </style>
+</head>
+<body class="font-sans text-gray-300 antialiased">
+
+    <!-- Nav -->
+    <nav class="px-6 py-4 border-b border-slate">
+        <div class="max-w-4xl mx-auto flex justify-between items-center">
+            <a href="index.html" class="font-mono text-sm text-gray-400 hover:text-white">← learnvibe.build</a>
+            <a href="https://ethboulder.xyz" target="_blank" class="font-mono text-sm text-emerald hover:text-emerald/80">ethboulder.xyz ↗</a>
+        </div>
+    </nav>
+
+    <!-- Hero -->
+    <section class="min-h-[80vh] flex flex-col justify-center px-6 py-20">
+        <div class="max-w-4xl mx-auto text-center">
+            <!-- Badge -->
+            <div class="mb-6">
+                <span class="inline-block px-4 py-2 rounded-full bg-emerald/10 text-emerald text-sm font-mono">
+                    ETH Boulder 2026 · Feb 13-15
+                </span>
+            </div>
+
+            <!-- Headline -->
+            <h1 class="text-4xl md:text-6xl font-bold text-white mb-6 leading-tight">
+                AI Vibe Coding Track
+            </h1>
+
+            <!-- Subhead -->
+            <p class="text-xl md:text-2xl text-gray-400 mb-6 max-w-2xl mx-auto">
+                A <span class="gradient-text font-semibold">new kind of hackathon</span> — where everyone flows between projects, AI enables rapid prototyping, and the best ideas emerge through collaboration.
+            </p>
+
+            <p class="text-lg text-gray-500 mb-10">
+                Co-learn. Co-build. Ship together.
+            </p>
+
+            <!-- CTA -->
+            <div class="flex flex-col sm:flex-row gap-4 justify-center items-center">
+                <a href="https://lu.ma/o9qpeepn" target="_blank" class="bg-emerald hover:bg-emerald/90 text-white font-semibold px-8 py-4 rounded-lg transition-all duration-200 hover:shadow-lg hover:shadow-emerald/25">
+                    Register for ETH Boulder
+                </a>
+                <a href="#vision" class="text-gray-400 hover:text-white font-medium px-6 py-4 transition-all">
+                    Learn more ↓
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- The Vision -->
+    <section id="vision" class="px-6 py-20 border-t border-slate">
+        <div class="max-w-4xl mx-auto">
+            <h2 class="font-mono text-emerald text-sm mb-4">// the_vision</h2>
+            <h3 class="text-3xl md:text-4xl font-bold text-white mb-8">Not your typical hackathon</h3>
+
+            <div class="prose prose-invert prose-lg max-w-none mb-12">
+                <p class="text-gray-300 text-lg leading-relaxed">
+                    Traditional hackathons: pick a team, commit for 48 hours, hope you chose right.
+                </p>
+                <p class="text-gray-300 text-lg leading-relaxed">
+                    <strong class="text-white">This track is different.</strong> AI changes what's possible. You can meaningfully contribute to many projects, not just one. You can prototype ideas in minutes, not days. The best concepts emerge through collision and collaboration.
+                </p>
+            </div>
+
+            <div class="grid md:grid-cols-2 gap-6">
+                <div class="card rounded-lg p-6 transition-all duration-200">
+                    <div class="text-2xl mb-3">🌊 Flow between projects</div>
+                    <p class="text-gray-400">Contribute to multiple ideas. No lock-in. Follow your inspiration.</p>
+                </div>
+                <div class="card rounded-lg p-6 transition-all duration-200">
+                    <div class="text-2xl mb-3">🤖 Brainstorm by building</div>
+                    <p class="text-gray-400">With AI, prototyping IS brainstorming. Try seven ideas, see what sticks.</p>
+                </div>
+                <div class="card rounded-lg p-6 transition-all duration-200">
+                    <div class="text-2xl mb-3">🔄 Reverse mitosis</div>
+                    <p class="text-gray-400">Similar projects merge and strengthen. Ideas combine into something bigger.</p>
+                </div>
+                <div class="card rounded-lg p-6 transition-all duration-200">
+                    <div class="text-2xl mb-3">🌱 Open source by default</div>
+                    <p class="text-gray-400">Everything created is forkable, remixable, owned by the commons.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Three Threads -->
+    <section class="px-6 py-20 border-t border-slate">
+        <div class="max-w-4xl mx-auto">
+            <h2 class="font-mono text-emerald text-sm mb-4">// three_threads</h2>
+            <h3 class="text-3xl md:text-4xl font-bold text-white mb-10">How it weaves together</h3>
+
+            <div class="space-y-6">
+                <div class="thread-card rounded-lg p-6 md:p-8">
+                    <div class="flex items-start gap-4">
+                        <div class="text-3xl">💰</div>
+                        <div>
+                            <h4 class="text-xl font-semibold text-white mb-3">Bounties & Funding</h4>
+                            <p class="text-gray-400 mb-4">
+                                Sponsors contribute funds — general pool or earmarked for specific problems. Quadratic voting allocates rewards. Code contributors, funders, and participants all get votes.
+                            </p>
+                            <p class="text-sm text-gray-500">
+                                Powered by Gitcoin's expertise in public goods funding.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="thread-card rounded-lg p-6 md:p-8">
+                    <div class="flex items-start gap-4">
+                        <div class="text-3xl">🎪</div>
+                        <div>
+                            <h4 class="text-xl font-semibold text-white mb-3">Programming</h4>
+                            <p class="text-gray-400 mb-4">
+                                Open building space at Regen Hub. Spontaneous workshops on vibe coding skills. Demos and lightning talks. Dialogues on AI + philosophy. Morning meditations.
+                            </p>
+                            <p class="text-sm text-gray-500">
+                                Emergent scheduling — flexibility over fixed lineup.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="thread-card rounded-lg p-6 md:p-8">
+                    <div class="flex items-start gap-4">
+                        <div class="text-3xl">🌀</div>
+                        <div>
+                            <h4 class="text-xl font-semibold text-white mb-3">Co-Learning Framework</h4>
+                            <p class="text-gray-400 mb-4">
+                                <strong class="text-white">Phase 1 — STORM:</strong> Pure experimentation. Everyone prototypes freely.<br>
+                                <strong class="text-white">Phase 2 — FORM:</strong> Projects consolidate. Teams form around worthy ideas.
+                            </p>
+                            <p class="text-sm text-gray-500">
+                                Unsolved problems carry forward to ongoing Learn Vibe Build cohorts.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- The Metaphor -->
+    <section class="px-6 py-20 border-t border-slate bg-charcoal/30">
+        <div class="max-w-3xl mx-auto text-center">
+            <h2 class="font-mono text-emerald text-sm mb-4">// the_metaphor</h2>
+
+            <blockquote class="text-2xl md:text-3xl text-white font-medium leading-relaxed mb-6">
+                "Hungry hippos with AI agent swarms"
+            </blockquote>
+
+            <p class="text-gray-400 text-lg">
+                Everyone's in their corner managing their agents. You share what you're working on, identify what you need, and others send their swarms to help. It's constant interweaving — a dozen projects emerging with contributions from everyone.
+            </p>
+        </div>
+    </section>
+
+    <!-- Who's Running This -->
+    <section class="px-6 py-20 border-t border-slate">
+        <div class="max-w-4xl mx-auto">
+            <h2 class="font-mono text-emerald text-sm mb-4">// the_team</h2>
+            <h3 class="text-3xl md:text-4xl font-bold text-white mb-10">Who's running this</h3>
+
+            <div class="grid md:grid-cols-2 gap-6">
+                <div class="card rounded-lg p-6">
+                    <h4 class="text-lg font-semibold text-white mb-2">Aaron Gabriel</h4>
+                    <p class="text-gray-400 text-sm mb-2">Track Lead</p>
+                    <p class="text-gray-500 text-sm">Builder, educator, founder of Learn Vibe Build. Teaching people to create with AI.</p>
+                </div>
+                <div class="card rounded-lg p-6">
+                    <h4 class="text-lg font-semibold text-white mb-2">Kevin Owocki</h4>
+                    <p class="text-gray-400 text-sm mb-2">ETH Boulder Organizer</p>
+                    <p class="text-gray-500 text-sm">Co-founder of Gitcoin. Quadratic funding pioneer. Boulder's web3 OG.</p>
+                </div>
+                <div class="card rounded-lg p-6">
+                    <h4 class="text-lg font-semibold text-white mb-2">Lucian Hymer</h4>
+                    <p class="text-gray-400 text-sm mb-2">Support</p>
+                    <p class="text-gray-500 text-sm">Built Gitcoin Passport. Claude Code wizard. Does wild agentic things.</p>
+                </div>
+                <div class="card rounded-lg p-6">
+                    <h4 class="text-lg font-semibold text-white mb-2">Jon Bo</h4>
+                    <p class="text-gray-400 text-sm mb-2">Support</p>
+                    <p class="text-gray-500 text-sm">Parachute co-founder. Teaches coding alongside Aaron.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Get Involved -->
+    <section class="px-6 py-20 border-t border-slate">
+        <div class="max-w-4xl mx-auto">
+            <h2 class="font-mono text-emerald text-sm mb-4">// get_involved</h2>
+            <h3 class="text-3xl md:text-4xl font-bold text-white mb-6">Ways to participate</h3>
+            <p class="text-gray-400 text-lg mb-10">
+                Casual support frameworks — contribute without heavy commitment.
+            </p>
+
+            <div class="grid md:grid-cols-3 gap-4">
+                <div class="card rounded-lg p-5 text-center">
+                    <div class="text-2xl mb-2">🛠️</div>
+                    <h4 class="font-semibold text-white mb-1">Builder</h4>
+                    <p class="text-gray-500 text-sm">Prototype, code, create</p>
+                </div>
+                <div class="card rounded-lg p-5 text-center">
+                    <div class="text-2xl mb-2">🎓</div>
+                    <h4 class="font-semibold text-white mb-1">Mentor</h4>
+                    <p class="text-gray-500 text-sm">Help others, share expertise</p>
+                </div>
+                <div class="card rounded-lg p-5 text-center">
+                    <div class="text-2xl mb-2">📣</div>
+                    <h4 class="font-semibold text-white mb-1">Ambassador</h4>
+                    <p class="text-gray-500 text-sm">Spread the word, bring people in</p>
+                </div>
+                <div class="card rounded-lg p-5 text-center">
+                    <div class="text-2xl mb-2">💵</div>
+                    <h4 class="font-semibold text-white mb-1">Funder</h4>
+                    <p class="text-gray-500 text-sm">Contribute to bounty pools</p>
+                </div>
+                <div class="card rounded-lg p-5 text-center">
+                    <div class="text-2xl mb-2">🎨</div>
+                    <h4 class="font-semibold text-white mb-1">Designer</h4>
+                    <p class="text-gray-500 text-sm">Comms, visuals, UX</p>
+                </div>
+                <div class="card rounded-lg p-5 text-center">
+                    <div class="text-2xl mb-2">🎤</div>
+                    <h4 class="font-semibold text-white mb-1">Speaker</h4>
+                    <p class="text-gray-500 text-sm">Lead a workshop or dialogue</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Learn Vibe Build Connection -->
+    <section class="px-6 py-20 border-t border-slate bg-charcoal/30">
+        <div class="max-w-4xl mx-auto">
+            <h2 class="font-mono text-emerald text-sm mb-4">// the_pipeline</h2>
+            <h3 class="text-3xl md:text-4xl font-bold text-white mb-6">Connected to Learn Vibe Build</h3>
+
+            <p class="text-gray-400 text-lg mb-8">
+                This track is part of a larger ecosystem. <a href="index.html" class="text-accent hover:underline">Learn Vibe Build</a> is a 4-week online cohort teaching AI-assisted development. What we learn there informs this hackathon — and problems not solved here become ongoing challenges for LVB cohorts.
+            </p>
+
+            <div class="card rounded-lg p-6 md:p-8">
+                <div class="flex flex-col md:flex-row items-center justify-between gap-6">
+                    <div class="text-center md:text-left">
+                        <div class="font-mono text-accent text-sm mb-1">4-week cohort</div>
+                        <div class="text-white font-semibold">Learn Vibe Build</div>
+                    </div>
+                    <div class="text-3xl text-gray-600">→</div>
+                    <div class="text-center md:text-left">
+                        <div class="font-mono text-emerald text-sm mb-1">48-hour intensive</div>
+                        <div class="text-white font-semibold">ETH Boulder Track</div>
+                    </div>
+                    <div class="text-3xl text-gray-600">→</div>
+                    <div class="text-center md:text-left">
+                        <div class="font-mono text-purple-400 text-sm mb-1">Ongoing</div>
+                        <div class="text-white font-semibold">Community of Practice</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA -->
+    <section class="px-6 py-20 border-t border-slate">
+        <div class="max-w-2xl mx-auto text-center">
+            <h2 class="text-3xl md:text-4xl font-bold text-white mb-6">Join us February 13-15</h2>
+            <p class="text-gray-400 mb-10">
+                Regen Hub, Boulder, Colorado. Come build the future with us.
+            </p>
+
+            <div class="flex flex-col sm:flex-row gap-4 justify-center items-center">
+                <a href="https://lu.ma/o9qpeepn" target="_blank" class="bg-emerald hover:bg-emerald/90 text-white font-semibold px-8 py-4 rounded-lg transition-all duration-200 hover:shadow-lg hover:shadow-emerald/25">
+                    Register for ETH Boulder
+                </a>
+                <a href="index.html" class="text-gray-400 hover:text-white font-medium px-6 py-4 transition-all">
+                    Or start with Learn Vibe Build
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="px-6 py-12 border-t border-slate">
+        <div class="max-w-4xl mx-auto text-center">
+            <p class="text-gray-500 text-sm mb-4">
+                Part of <a href="https://ethboulder.xyz" target="_blank" class="text-gray-400 hover:text-white">ETH Boulder 2026</a> · Powered by <a href="https://regenhub.xyz" target="_blank" class="text-gray-400 hover:text-white">RegenHub</a>
+            </p>
+            <p class="text-gray-600 text-sm">
+                <a href="ethboulder-internal.html" class="hover:text-gray-400">Internal coordination →</a>
+            </p>
+        </div>
+    </footer>
+
+</body>
+</html>
