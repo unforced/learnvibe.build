@@ -273,10 +273,14 @@ cohortRoutes.get('/cohort/:slug', async (c) => {
     return c.html(<GatedMessage cohort={cohort} user={user} />, 403)
   }
 
+  // Admins see draft lessons too (badged below) — everyone else published only
   const cohortLessons = await db
     .select()
     .from(lessons)
-    .where(and(eq(lessons.cohortId, cohort.id), eq(lessons.status, 'published')))
+    .where(and(
+      eq(lessons.cohortId, cohort.id),
+      ...(isAdmin(user) ? [] : [eq(lessons.status, 'published')])
+    ))
     .orderBy(asc(lessons.sortOrder), asc(lessons.weekNumber))
     .all()
 
@@ -366,6 +370,7 @@ cohortRoutes.get('/cohort/:slug', async (c) => {
                   <h3>
                     {completedLessonIds.has(lesson.id) && <span class="lesson-check" title="Completed">✓ </span>}
                     Week {lesson.weekNumber}: {lesson.title}
+                    {lesson.status !== 'published' && <span class="badge badge-draft" style="margin-left: 0.5rem; vertical-align: middle;">Draft</span>}
                   </h3>
                   {lesson.description && <p>{lesson.description}</p>}
                 </div>
@@ -474,6 +479,7 @@ cohortRoutes.get('/cohort/:slug/week/:num', async (c) => {
     return c.html(<GatedMessage cohort={cohort} user={user} />, 403)
   }
 
+  // Admins can open draft lessons (badged in the header) — everyone else published only
   const lesson = await db
     .select()
     .from(lessons)
@@ -481,7 +487,7 @@ cohortRoutes.get('/cohort/:slug/week/:num', async (c) => {
       and(
         eq(lessons.cohortId, cohort.id),
         eq(lessons.weekNumber, weekNum),
-        eq(lessons.status, 'published')
+        ...(isAdmin(user) ? [] : [eq(lessons.status, 'published')])
       )
     )
     .get()
@@ -561,11 +567,14 @@ cohortRoutes.get('/cohort/:slug/week/:num', async (c) => {
     isCompleted = !!progress
   }
 
-  // Get all lessons for prev/next navigation
+  // Get all lessons for prev/next navigation (same visibility as the list above)
   const allLessons = await db
     .select({ weekNumber: lessons.weekNumber, title: lessons.title })
     .from(lessons)
-    .where(and(eq(lessons.cohortId, cohort.id), eq(lessons.status, 'published')))
+    .where(and(
+      eq(lessons.cohortId, cohort.id),
+      ...(isAdmin(user) ? [] : [eq(lessons.status, 'published')])
+    ))
     .orderBy(asc(lessons.weekNumber))
     .all()
 
@@ -626,7 +635,10 @@ cohortRoutes.get('/cohort/:slug/week/:num', async (c) => {
         <a href={`/cohort/${slug}`} class="back-link">← {cohort.title}</a>
 
         <p class="section-label">Week {weekNum}</p>
-        <h2>{lesson.title}</h2>
+        <h2>
+          {lesson.title}
+          {lesson.status !== 'published' && <span class="badge badge-draft" style="margin-left: 0.6rem; vertical-align: middle;">Draft — only admins see this</span>}
+        </h2>
         {lesson.description && <p class="lead">{lesson.description}</p>}
         {lesson.date && (
           <p style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--text-tertiary); margin-bottom: 1.25rem;">
