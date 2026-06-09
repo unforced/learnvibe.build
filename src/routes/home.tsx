@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm'
 import { Layout } from '../components/Layout'
 import { getDb } from '../db'
 import { cohorts } from '../db/schema'
+import { getCohortCapacity, getCapacityLabel } from '../lib/access'
 import type { AppContext } from '../types'
 
 const home = new Hono<AppContext>()
@@ -30,8 +31,11 @@ function computeCohortProgress(cohort: { startDate: string | null; weeks: number
   const daysSince = (Date.now() - start.getTime()) / dayMs
   const totalWeeks = cohort.weeks
   if (daysSince < 0) return { phase: 'upcoming', currentWeek: 0, totalWeeks }
+  // A cohort is "complete" the day after its last class — not after the
+  // full N×7 days have elapsed. Last class is at day (totalWeeks - 1) * 7.
+  const lastClassDay = (totalWeeks - 1) * 7
+  if (Math.floor(daysSince) > lastClassDay) return { phase: 'completed', currentWeek: totalWeeks, totalWeeks }
   const week = Math.floor(daysSince / 7) + 1
-  if (week > totalWeeks) return { phase: 'completed', currentWeek: totalWeeks, totalWeeks }
   return { phase: 'inflight', currentWeek: week, totalWeeks }
 }
 
@@ -39,28 +43,53 @@ home.get('/', async (c) => {
   const user = c.get('user')
   const db = getDb(c.env.DB)
   const cohort1 = await db.select().from(cohorts).where(eq(cohorts.slug, 'cohort-1')).get()
-  const progress = cohort1 ? computeCohortProgress(cohort1) : null
+  const cohort2 = await db.select().from(cohorts).where(eq(cohorts.slug, 'cohort-2')).get()
+  const cohort1Progress = cohort1 ? computeCohortProgress(cohort1) : null
+  const cohort2Progress = cohort2 ? computeCohortProgress(cohort2) : null
+  // Capacity for the enrolling cohort (Summer 2026) drives the spots-left
+  // banner on the cohort card. Only surfaced when remaining <= 10 to avoid
+  // false urgency early in enrollment.
+  const cohort2Capacity = cohort2?.status === 'enrolling'
+    ? await getCohortCapacity(c.env.DB, cohort2.slug)
+    : null
+  const cohort2CapacityLabel = getCapacityLabel(cohort2Capacity)
 
-  // The hero badge text adapts to where the cohort is in its run. Used in two
-  // places (hero pill + Cohort 1 card badge) so we compute it once.
+  // The "primary" cohort is whatever is most actionable right now —
+  // an enrolling future cohort, an in-flight current one, or the most
+  // recently completed one. Used to drive the hero pill + downstream
+  // section copy so the page leads with whatever the visitor can act on.
+  const primaryCohort = (() => {
+    if (cohort2?.status === 'enrolling') return { cohort: cohort2, progress: cohort2Progress }
+    if (cohort2Progress?.phase === 'inflight') return { cohort: cohort2, progress: cohort2Progress }
+    if (cohort1Progress?.phase === 'inflight') return { cohort: cohort1, progress: cohort1Progress }
+    if (cohort2?.status === 'upcoming') return { cohort: cohort2, progress: cohort2Progress }
+    if (cohort1Progress?.phase === 'completed') return { cohort: cohort1, progress: cohort1Progress }
+    return { cohort: cohort1 ?? cohort2 ?? null, progress: cohort1Progress ?? cohort2Progress }
+  })()
+
+  // Hero badge text adapts to where the primary cohort is in its run.
   const cohortStatusLabel = (() => {
-    if (!progress) return 'Cohort 1'
-    if (progress.phase === 'inflight') return `Cohort 1 in flight · Week ${progress.currentWeek} of ${progress.totalWeeks}`
-    if (progress.phase === 'completed') return 'Cohort 1 · Complete'
-    return 'Cohort 1 · Coming'
+    const c = primaryCohort.cohort
+    const p = primaryCohort.progress
+    if (!c) return 'Learn Vibe Build'
+    if (c.status === 'enrolling') return `${c.title} · Enrolling`
+    if (p?.phase === 'inflight') return `${c.title} · Week ${p.currentWeek} of ${p.totalWeeks}`
+    if (p?.phase === 'completed') return `${c.title} · Complete`
+    if (p?.phase === 'upcoming') return `${c.title} · Starts ${c.startDate ?? 'soon'}`
+    return c.title
   })()
 
   return c.html(
     <Layout
       title="Build your personal AI assistant"
-      description="In 6 weeks, build your own personal agentic assistant — one that knows you, has hands in your world, and helps you live and create more effectively. Cohort-based, in Boulder, CO & remote."
+      description="Three weeks, in person in Boulder. Build your own personal agentic assistant — one that knows you, has hands in your world, and helps you live and create more effectively. No coding experience needed."
       user={user}
       fullWidth
     >
       {/* HERO */}
       <section class="hero">
         <h1 class="hero-title">Build your personal <span class="accent">AI assistant</span></h1>
-        <p class="hero-subtitle">In 6 weeks, build your own agentic assistant &mdash; one that knows you, has hands in your world, and helps you live and create more effectively. No coding experience needed.</p>
+        <p class="hero-subtitle">Three weeks, in person in Boulder &mdash; build your own agentic assistant that knows you, has hands in your world, and helps you live and create more effectively. No coding experience needed.</p>
         <p style="margin-top: 1rem; color: var(--text-tertiary); font-style: italic;">A community of practice for AI. We learn and grow together.</p>
 
         <div style="margin-top: 1.5rem; display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.85rem; background: var(--surface); border: 1px solid var(--border); border-radius: 999px; font-family: var(--font-mono); font-size: 0.78rem; letter-spacing: 0.02em; color: var(--text-secondary);">
@@ -69,10 +98,10 @@ home.get('/', async (c) => {
         </div>
 
         {/* Auth-aware hero CTA — see #44 funnel continuity.
-            Signed-in visitors don't need the join-the-list pitch (they're
-            already in our system); show a friendly continuity treatment
-            pointing at their dashboard. Signed-out visitors see the
-            inline email-only signup posting to /api/interests. */}
+            Signed-in visitors see a dashboard shortcut (they're already in).
+            Signed-out visitors during an enrollment window get a primary
+            Apply CTA + secondary interest-list signup. When no cohort is
+            enrolling, the interest list becomes the primary action. */}
         {user ? (
           <div style="margin-top: 1.5rem; max-width: 460px; margin-left: auto; margin-right: auto;">
             <p style="margin: 0 0 0.85rem 0; color: var(--text-secondary); font-size: 1rem;">
@@ -82,6 +111,26 @@ home.get('/', async (c) => {
               Go to your dashboard
               <ArrowSvg />
             </a>
+          </div>
+        ) : primaryCohort.cohort?.status === 'enrolling' ? (
+          <div style="margin-top: 1.5rem; max-width: 540px; margin-left: auto; margin-right: auto; display: flex; flex-direction: column; gap: 0.75rem; align-items: center;">
+            <a href="/enroll" class="hero-cta" style="margin-top: 0;">
+              Apply for {primaryCohort.cohort.title}
+              <ArrowSvg />
+            </a>
+            <form method="post" action="/api/interests" style="display: flex; gap: 0.5rem; align-items: stretch; width: 100%;">
+              <input
+                type="email"
+                name="email"
+                required
+                autocomplete="email"
+                placeholder="Or join the interest list — you@example.com"
+                style="flex: 1; padding: 0.6rem 1rem; border: 1px solid var(--border); border-radius: 8px; font-size: 0.9rem; font-family: inherit;"
+              />
+              <button type="submit" style="padding: 0.6rem 1.2rem; white-space: nowrap; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 8px; font-size: 0.9rem; font-weight: 500; cursor: pointer;">
+                Sign up
+              </button>
+            </form>
           </div>
         ) : (
           <form method="post" action="/api/interests" style="margin-top: 1.5rem; display: flex; gap: 0.5rem; align-items: stretch; max-width: 460px; margin-left: auto; margin-right: auto;">
@@ -99,53 +148,39 @@ home.get('/', async (c) => {
             </button>
           </form>
         )}
-        <p class="hero-meta">Mondays 5:30&ndash;7:30pm MT<span class="sep">&middot;</span>6 Weeks<span class="sep">&middot;</span>Boulder, CO &amp; Remote<span class="sep">&middot;</span>$500 (sliding-scale)</p>
-        {!user && (
-          <p style="margin-top: 1rem; font-size: 0.85rem;"><a href="/apply/status" style="color: var(--text-tertiary); text-decoration: none;">Already applied? Check your status &rarr;</a></p>
-        )}
+        <p class="hero-meta">Mondays &amp; Wednesdays 6&ndash;8pm MT<span class="sep">&middot;</span>3 Weeks<span class="sep">&middot;</span>Capped at 20<span class="sep">&middot;</span>$250&ndash;$750 sliding scale</p>
       </section>
 
       <div class="hp-divider"><hr /></div>
 
-      {/* THE JOURNEY: SIX C'S */}
+      {/* THE JOURNEY: LEARN / VIBE / BUILD */}
       <div class="journey-band" id="journey">
         <section class="hp-section">
           <p class="section-label">The Journey</p>
-          <h2>Six weeks, six movements of the same practice.</h2>
-          <p class="lead">We return to the same core moves each week, deepening as we go. Spirals, not stairs &mdash; you don't graduate from one to the next, you keep coming back, deeper each time.</p>
+          <h2>Three weeks. Three movements. <span class="accent">Learn. Vibe. Build.</span></h2>
+          <p class="lead">Six classes total, two per movement. We start with conversation and context, move into design and prototyping, then take what you've made and ship it &mdash; live on the open internet, yours to keep growing.</p>
 
           <div class="journey-grid">
             <div class="journey-step">
-              <p class="journey-step-num">Week 1</p>
-              <h3 class="journey-step-title">Conversation</h3>
-              <p>Three conversations: with yourself, with AI, with each other. Naming intention, asking questions before answers, and hearing what's actually alive in what you're trying to make.</p>
+              <p class="journey-step-num">Week 1 &middot; Classes 1&ndash;2</p>
+              <h3 class="journey-step-title">Learn</h3>
+              <p>Conversation, context, and connectors &mdash; how to think and work with AI as a learning partner. We set up your living context document with <strong>Parachute</strong>, a personal knowledge system that gives your AI persistent memory across conversations and tools.</p>
             </div>
             <div class="journey-step">
-              <p class="journey-step-num">Week 2</p>
-              <h3 class="journey-step-title">Context</h3>
-              <p>A first chat with AI is meeting a brilliant stranger. We build a living document about you that any AI can know you through &mdash; and read each other's contexts back to find out what actually transferred.</p>
+              <p class="journey-step-num">Week 2 &middot; Classes 3&ndash;4</p>
+              <h3 class="journey-step-title">Vibe</h3>
+              <p>Prototype, design, experiment. The two-loop pattern &mdash; clarify what you're making, then build a real thing in Claude Design. Iteration, taste, and the practice of pushing back with specificity.</p>
             </div>
             <div class="journey-step">
-              <p class="journey-step-num">Week 3</p>
-              <h3 class="journey-step-title">Connectors</h3>
-              <p>AI with hands. Connecting agents to your tools and data so they can act in your world &mdash; calendar, notes, drive, your knowledge system &mdash; not just chat about it.</p>
-            </div>
-            <div class="journey-step">
-              <p class="journey-step-num">Week 4</p>
-              <h3 class="journey-step-title">Craft</h3>
-              <p>Making what you need with AI as creative partner. Websites, trackers, small tools. Code is the deeper cut for those who want it &mdash; optional, never required.</p>
-            </div>
-            <div class="journey-step">
-              <p class="journey-step-num">Week 5</p>
-              <h3 class="journey-step-title">Coordination</h3>
-              <p>Weaving your agents together into a single assistant that organizes your life, hiding the complexity behind the scenes.</p>
-            </div>
-            <div class="journey-step">
-              <p class="journey-step-num">Week 6</p>
-              <h3 class="journey-step-title">Community</h3>
-              <p>Demo, reflect, and the path forward. Stepping into ongoing practice with the people who've been building alongside you.</p>
+              <p class="journey-step-num">Week 3 &middot; Classes 5&ndash;6</p>
+              <h3 class="journey-step-title">Build</h3>
+              <p>Claude Code, GitHub, hosting. From prototype to a real site at a real URL. Engineering principles for builders who don't consider themselves engineers &mdash; and demos to celebrate what you've made.</p>
             </div>
           </div>
+
+          <p style="margin-top: 2rem; text-align: center; color: var(--text-secondary); font-size: 0.95rem;">
+            Want the deeper breakdown? <a href="/curriculum" style="color: var(--accent);">Read the full curriculum &rarr;</a>
+          </p>
         </section>
       </div>
 
@@ -162,63 +197,74 @@ home.get('/', async (c) => {
 
       <div class="hp-divider"><hr /></div>
 
-      {/* COHORT 1 (in flight) + COHORT 2 + CU CLASS */}
+      {/* SUMMER 2026 (enrolling) + SPRING 2026 (just wrapped) + CU CLASS */}
       <section class="hp-section hp-section-narrow" id="cohort">
         <p class="section-label">What's happening</p>
-        <h2>Cohort 1 is in flight. Cohort 2 is forming.</h2>
-        <p class="lead">Around 30 builders are in the room with us right now &mdash; full house Week 1, and the cohort is moving through the Six C's together. The next cohort is forming. Apply now and we'll be in touch as dates come into focus.</p>
+        <h2>Summer 2026 is enrolling. Spring 2026 just wrapped.</h2>
+        <p class="lead">
+          Around 30 builders just spent six weeks together &mdash; websites going live, MCPs being written, automations replacing whole stacks, real things shipped for the first time. The next cohort is forming around what surfaced in that run. Apply for Summer 2026 below.
+        </p>
 
-        <div class="cohort-card">
-          <span class="cohort-badge badge-open">{progress?.phase === 'inflight' ? `In flight · Week ${progress.currentWeek} of ${progress.totalWeeks}` : progress?.phase === 'completed' ? 'Complete' : 'Cohort 1'}</span>
-          <h3>Cohort 1 &mdash; Practice</h3>
-          <p class="cohort-detail">Mondays 5:30&ndash;7:30pm MT &middot; 6 weeks &middot; Boulder, CO &amp; Remote &middot; ~30 builders</p>
-          <p>Two-hour live session each Monday with core curriculum and live demonstration. A weekly open circle for sharing what you're making, trying, or noticing. Hybrid coworking on Thursday afternoons at Regen Hub. Plus a community platform to share projects, ask questions, and learn from each other.</p>
+        {/* SUMMER 2026 — the active offering, lead card */}
+        <div class="cohort-card" style="border-color: var(--accent);">
+          <span class="cohort-badge badge-open">{cohort2?.status === 'enrolling' ? 'Enrolling now' : (cohort2Progress?.phase === 'inflight' ? `In flight · Week ${cohort2Progress.currentWeek} of ${cohort2Progress.totalWeeks}` : 'Summer 2026')}</span>
+          <h3>Summer 2026 Cohort</h3>
+          <p class="cohort-detail">Mondays &amp; Wednesdays 6&ndash;8pm MT &middot; June 22 &ndash; July 8, 2026 &middot; 3 weeks &middot; In person at <a href="https://regenhub.xyz" target="_blank" style="color: inherit; text-decoration: underline;">Regen Hub</a>, Boulder &middot; capped at 20</p>
+          <p>
+            An accelerated, in-person intensive at the Regen Hub. Six classes across three movements &mdash; <strong>Learn, Vibe, Build</strong>. Office hours Tuesdays 1&ndash;3pm. Calls recorded, but no live online offering &mdash; this one's about being in the room together. Regen Hub co-working benefits are part of the value: discounted membership and free day passes alongside the cohort.
+          </p>
+
+          {cohort2CapacityLabel && (
+            <div style={`margin-top: 1rem; padding: 0.7rem 1rem; background: ${cohort2Capacity?.isFull ? 'var(--surface)' : 'rgba(232, 97, 42, 0.08)'}; border: 1px solid ${cohort2Capacity?.isFull ? 'var(--border)' : 'var(--accent)'}; border-radius: 8px; font-size: 0.92rem; font-weight: 500; color: ${cohort2Capacity?.isFull ? 'var(--text-secondary)' : 'var(--accent)'};`}>
+              ⚡ {cohort2CapacityLabel}
+            </div>
+          )}
+
+          <div style="margin-top: 1.5rem; padding: 1rem 1.25rem; background: var(--surface); border-radius: 8px;">
+            <p style="margin: 0 0 0.5rem; font-weight: 600; font-size: 0.95rem;">Sliding scale &mdash; pick what fits your abundance</p>
+            <ul style="margin: 0; padding-left: 1.25rem; color: var(--text-secondary); line-height: 1.7; font-size: 0.92rem;">
+              <li><strong>$250</strong> &mdash; for folks where this is a stretch</li>
+              <li><strong>$500</strong> &mdash; suggested rate</li>
+              <li><strong>$750</strong> &mdash; helps subsidize sliding-scale and scholarship spots</li>
+              <li><strong>Scholarship</strong> &mdash; limited slots for demonstrated need or public-benefit / non-profit / student academic work</li>
+            </ul>
+          </div>
+
+          <div style="margin-top: 1.5rem; display: flex; gap: 1rem; flex-wrap: wrap;">
+            <a href="/enroll" style="padding: 0.75rem 1.5rem; background: var(--accent); color: white; border-radius: 8px; text-decoration: none; font-size: 0.95rem; font-weight: 500; display: inline-flex; align-items: center; gap: 0.4rem;">
+              Apply now
+              <SmallArrowSvg />
+            </a>
+            <a href="/curriculum" style="padding: 0.75rem 1.5rem; background: var(--surface); border: 1px solid var(--border); color: var(--text); border-radius: 8px; text-decoration: none; font-size: 0.95rem; font-weight: 500; display: inline-flex; align-items: center; gap: 0.4rem;">
+              Read the curriculum
+              <SmallArrowSvg />
+            </a>
+          </div>
+        </div>
+
+        {/* SPRING 2026 — historical, what just happened */}
+        <div class="cohort-card" style="margin-top: 1.5rem;">
+          <span class="cohort-badge" style="background: var(--surface); color: var(--text-secondary); border: 1px solid var(--border);">{cohort1Progress?.phase === 'completed' ? 'Just wrapped' : 'Cohort 1'}</span>
+          <h3>Spring 2026 Cohort</h3>
+          <p class="cohort-detail">Mondays 5:30&ndash;7:30pm MT &middot; April&ndash;May 2026 &middot; 6 weeks &middot; Boulder, CO &amp; Remote &middot; ~30 builders</p>
+          <p>
+            The first full run. Six weeks through the Six C's &mdash; Conversation, Context, Connectors, Craft, Code, Community. Real things shipped: ring sizers, LED control apps, ADHD transition tools, business automations, personal websites. Summer 2026 builds on what worked here.
+          </p>
 
           <div class="cohort-weeks">
             <div class="cohort-week"><strong>Conversation</strong><span>Week 1</span></div>
             <div class="cohort-week"><strong>Context</strong><span>Week 2</span></div>
             <div class="cohort-week"><strong>Connectors</strong><span>Week 3</span></div>
             <div class="cohort-week"><strong>Craft</strong><span>Week 4</span></div>
-            <div class="cohort-week"><strong>Coordination</strong><span>Week 5</span></div>
+            <div class="cohort-week"><strong>Code</strong><span>Week 5</span></div>
             <div class="cohort-week"><strong>Community</strong><span>Week 6</span></div>
           </div>
 
-          <div style="margin-top: 1.5rem; display: flex; gap: 1rem; flex-wrap: wrap;">
-            <a href="/curriculum" style="padding: 0.75rem 1.5rem; background: var(--surface); border: 1px solid var(--border); color: var(--text); border-radius: 8px; text-decoration: none; font-size: 0.95rem; font-weight: 500; display: inline-flex; align-items: center; gap: 0.4rem;">
-              Read the curriculum
-              <SmallArrowSvg />
-            </a>
-            {progress?.phase === 'inflight' && user && (
-              <a href="/dashboard" style="padding: 0.75rem 1.5rem; color: var(--text-secondary); font-size: 0.95rem; text-decoration: none; display: inline-flex; align-items: center;">Your dashboard &rarr;</a>
-            )}
-          </div>
-        </div>
-
-        <div class="cohort-card" style="margin-top: 1.5rem;">
-          <span class="cohort-badge" style="background: var(--surface); color: var(--text-secondary); border: 1px solid var(--border);">Coming next</span>
-          <h3>Cohort 2 &mdash; Forming</h3>
-          <p class="cohort-detail">Dates coming soon &middot; same shape, deeper from what we're learning now</p>
-          <p>The next cohort is being shaped from what's surfacing inside Cohort 1 &mdash; pacing, demos, where the practice goes deepest. Drop your email and we'll be in touch as the dates land. Cost should never be a barrier; we'll work with you on what makes sense.</p>
-
-          <p style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border);"><strong style="font-family: var(--font-mono); font-size: 1.1rem;">$500</strong> <span style="color: var(--text-tertiary);">general admission (Cohort 1 pricing) &mdash; sliding-scale and sponsored spots available. <a href="mailto:ag@unforced.dev" style="color: var(--accent);">Reach out</a> if cost is a question.</span></p>
-
-          <form method="post" action="/api/interests" style="margin-top: 1.5rem; display: flex; gap: 0.5rem; align-items: stretch; max-width: 460px; flex-wrap: wrap;">
-            <input
-              type="email"
-              name="email"
-              required
-              autocomplete="email"
-              placeholder="you@example.com"
-              style="flex: 1; min-width: 220px; padding: 0.7rem 1rem; border: 1px solid var(--border); border-radius: 8px; font-size: 0.95rem; font-family: inherit;"
-            />
-            <button type="submit" class="hero-cta" style="margin-top: 0; font-size: 0.95rem; padding: 0.7rem 1.4rem; white-space: nowrap; border: 0; cursor: pointer;">
-              Join the list
-              <SmallArrowSvg />
-            </button>
-          </form>
-          <p style="margin-top: 0.85rem; font-size: 0.85rem; color: var(--text-tertiary);">
-            <a href="/apply/status" style="color: var(--text-tertiary); text-decoration: none;">Already applied? Check your status &rarr;</a>
-          </p>
+          {user && (
+            <div style="margin-top: 1.5rem;">
+              <a href="/dashboard" style="color: var(--text-secondary); font-size: 0.95rem; text-decoration: none;">Your dashboard &rarr;</a>
+            </div>
+          )}
         </div>
 
         <div style="margin-top: 1.5rem; padding: 1.5rem 1.75rem; background: var(--white); border: 1px solid var(--border); border-radius: 10px;">
@@ -230,11 +276,11 @@ home.get('/', async (c) => {
 
       <div class="hp-divider"><hr /></div>
 
-      {/* PILOT + COHORT 1 SOCIAL PROOF */}
+      {/* PILOT + SPRING 2026 SOCIAL PROOF */}
       <section class="hp-section hp-section-narrow">
         <p class="section-label">The lineage</p>
         <h2>It started with a pilot.</h2>
-        <p class="lead">Cohort 0 ran in January 2026 &mdash; 13 builders, 4 weeks, real projects deployed to the internet. Cohort 1 is now mid-flight, ~30 builders deep, moving through the full 6-week Six C's arc. Here's what folks from the pilot had to say.</p>
+        <p class="lead">The Pilot ran in January 2026 &mdash; 13 builders, 4 weeks, real projects deployed to the internet. Spring 2026 just wrapped &mdash; ~30 builders, six weeks through the full Six C's arc. Summer 2026 builds on what worked. Here's what folks from the pilot had to say.</p>
 
         <div class="outcomes-grid">
           <div class="outcome-stat">
@@ -243,7 +289,7 @@ home.get('/', async (c) => {
           </div>
           <div class="outcome-stat">
             <div class="outcome-number">~30</div>
-            <div class="outcome-label">in Cohort 1, in flight now</div>
+            <div class="outcome-label">in Spring 2026 (just wrapped)</div>
           </div>
           <div class="outcome-stat">
             <div class="outcome-number">0</div>
@@ -260,6 +306,31 @@ home.get('/', async (c) => {
           <blockquote>&ldquo;Seeing all the stuff that other folks were building!&rdquo;</blockquote>
           <p class="testimonial-author">&mdash; Cohort 0 participant, on what stood out most</p>
         </div>
+      </section>
+
+      <div class="hp-divider"><hr /></div>
+
+      {/* REGEN HUB — ongoing community on-ramp */}
+      <section class="hp-section hp-section-narrow" id="hub">
+        <p class="section-label">The Hub</p>
+        <h2>Come build with us at the <a href="https://regenhub.xyz" target="_blank" style="color: var(--accent); text-decoration: none;">Regen Hub</a>.</h2>
+        <p class="lead">
+          The cohort is the on-ramp. The Hub is where it keeps going. Boulder builders working with AI in public, every day &mdash; a co-working space, monthly AI events, and a cooperative community of makers, organizers, and creators.
+        </p>
+
+        <div style="margin-top: 2rem; display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem;">
+          <div style="padding: 1.5rem 1.75rem; background: var(--white); border: 1px solid var(--border); border-radius: 10px;">
+            <h3 style="font-family: var(--font-display); font-weight: 600; font-size: 1.1rem; margin: 0 0 0.5rem;">Try a free day pass</h3>
+            <p style="margin: 0; color: var(--text-secondary); line-height: 1.6;">No cohort required &mdash; come work alongside builders for a day, see what's alive in the space.</p>
+            <p style="margin-top: 0.85rem;"><a href="https://regenhub.xyz" target="_blank" style="font-size: 0.9rem; color: var(--accent); text-decoration: none;">regenhub.xyz &rarr;</a></p>
+          </div>
+          <div style="padding: 1.5rem 1.75rem; background: var(--white); border: 1px solid var(--border); border-radius: 10px;">
+            <h3 style="font-family: var(--font-display); font-weight: 600; font-size: 1.1rem; margin: 0 0 0.5rem;">Cohort members get more</h3>
+            <p style="margin: 0; color: var(--text-secondary); line-height: 1.6;">Discounted Regen Hub Cooperative membership and free co-working day passes during the cohort. The membership unlocks monthly AI events and ongoing access.</p>
+          </div>
+        </div>
+
+        <style dangerouslySetInnerHTML={{ __html: `@media (max-width: 640px) { #hub > div[style*="grid-template-columns: 1fr 1fr"] { grid-template-columns: 1fr !important; } }` }} />
       </section>
 
       <div class="hp-divider"><hr /></div>
@@ -322,12 +393,17 @@ home.get('/', async (c) => {
         <div class="guides-grid">
           <div class="guide">
             <h3 class="guide-name">Aaron Gabriel</h3>
-            <p class="guide-role">Lead Facilitator</p>
+            <p class="guide-role">Lead Instructor</p>
             <p class="guide-bio">Founder of <a href="https://parachute.computer" target="_blank">Parachute</a>, graduate student at CU Boulder's ATLAS, founding member of <a href="https://regenhub.xyz" target="_blank">Regen Hub Cooperative</a>. Has spent the last year building with AI every day &mdash; including his own personal AI agent.</p>
           </div>
           <div class="guide">
+            <h3 class="guide-name">Benjamin Life</h3>
+            <p class="guide-role">Teaching Assistant &middot; Summer 2026</p>
+            <p class="guide-bio">Spring 2026 alumnus, assisting this cohort. <em>(Bio coming soon.)</em></p>
+          </div>
+          <div class="guide">
             <h3 class="guide-name">Jon Bo</h3>
-            <p class="guide-role">Co-Facilitator</p>
+            <p class="guide-role">Teaching Assistant &middot; Spring 2026</p>
             <p class="guide-bio">3x founding engineer, builder of things, writer of words. Daily user of Claude Code. Brings deep engineering experience to help you build real things that work.</p>
           </div>
         </div>
@@ -343,7 +419,7 @@ home.get('/', async (c) => {
         <div class="faq-list">
           <div class="faq-item">
             <h3 class="faq-q">Do I need coding experience?</h3>
-            <p class="faq-a">No. The program is designed for people who have never written a line of code. In Week 4 we make things with AI as creative partner &mdash; you provide the direction and taste, the AI does the mechanics. Code is the deeper cut for those who want to go further.</p>
+            <p class="faq-a">No. The program is designed for people who have never written a line of code. The Vibe and Build movements are about making things with AI as creative partner &mdash; you provide the direction and taste, the AI does the mechanics. Code is the deeper cut for those who want to go further.</p>
           </div>
           <div class="faq-item">
             <h3 class="faq-q">What tech do I need?</h3>
@@ -351,23 +427,27 @@ home.get('/', async (c) => {
           </div>
           <div class="faq-item">
             <h3 class="faq-q">Is it in-person or remote?</h3>
-            <p class="faq-a">Both. Weekly sessions happen in-person at <a href="https://regenhub.xyz" style="color: var(--accent); text-decoration: none;">Regen Hub</a> in Boulder, CO and are available remotely. Coworking hours on Thursday afternoons are hybrid.</p>
+            <p class="faq-a"><strong>Summer 2026 is in-person only</strong>, at <a href="https://regenhub.xyz" style="color: var(--accent); text-decoration: none;">Regen Hub</a> in Boulder, CO. We'll record the calls for your reference, but there's no live remote option for this cohort &mdash; being in the room together is the point. Office hours Tuesday afternoons happen in person too.</p>
           </div>
           <div class="faq-item">
             <h3 class="faq-q">How much time per week?</h3>
-            <p class="faq-a">5&ndash;10 hours per week is ideal, but it's up to you. The work you do in this class should actively help you in areas of your life &mdash; giving you time back rather than taking it.</p>
+            <p class="faq-a">Two two-hour live sessions per week (Mondays and Wednesdays 6&ndash;8pm MT), plus office hours Tuesdays 1&ndash;3pm MT. Outside class, 4&ndash;6 hours of your own time on what you're making is ideal. The work should give you time back, not take it.</p>
           </div>
           <div class="faq-item">
             <h3 class="faq-q">What will I build?</h3>
-            <p class="faq-a">That's up to you. Past students have built personal websites, workflow tools, creative platforms, and business apps. By the end, you'll also set up the foundation for your own personal AI assistant &mdash; one that knows you and helps you live and create more effectively.</p>
+            <p class="faq-a">That's up to you. Past students have built personal websites, workflow tools, creative platforms, business automations, and small apps for their friends. By the end, you'll have something real on the open internet at a URL you own &mdash; plus the foundation of an AI assistant that knows you.</p>
           </div>
           <div class="faq-item">
             <h3 class="faq-q">When does the next cohort start?</h3>
-            <p class="faq-a">Cohort 1 is in flight now (April&ndash;May 2026). Cohort 2 dates aren't set yet &mdash; we're shaping it from what's surfacing in Cohort 1. Apply now and we'll be in touch as soon as we know.</p>
+            <p class="faq-a">Summer 2026 runs <strong>June 22 &ndash; July 8, 2026</strong>. Six classes, Mondays and Wednesdays 6&ndash;8pm. Office hours Tuesdays 1&ndash;3pm. In person at the Regen Hub.</p>
           </div>
           <div class="faq-item">
             <h3 class="faq-q">What's the pricing?</h3>
-            <p class="faq-a"><strong>$500</strong> general admission. The application has a sliding-scale option &mdash; tell us what works for you and we'll honor it. Sponsored spots are available too. Cost should never be a barrier.</p>
+            <p class="faq-a"><strong>Sliding scale &mdash; pick what matches your level of abundance.</strong> $250 if this feels like a stretch, $500 as the suggested rate, $750 if you'd like to help subsidize other spots. Scholarships available for demonstrated need or public-benefit / non-profit / student academic work. Cost should never be a barrier.</p>
+          </div>
+          <div class="faq-item">
+            <h3 class="faq-q">What about the Regen Hub?</h3>
+            <p class="faq-a">As a cohort member you get discounted Regen Hub Cooperative membership plus free co-working day passes during the cohort. Beyond the three weeks, there's an ongoing community at the hub &mdash; monthly AI events, co-working, fellow builders. The cohort is the on-ramp; the Hub is where it keeps going.</p>
           </div>
         </div>
       </section>
@@ -376,21 +456,16 @@ home.get('/', async (c) => {
       <section class="cta-section">
         <div class="cta-content">
           <h2>Ready to build an assistant that knows you?</h2>
-          <p>Cohort 2 is forming. Six weeks of practice, together. Drop your email and we'll be in touch as dates come into focus.</p>
-          <form method="post" action="/api/interests" style="margin: 1.5rem auto 0; display: flex; gap: 0.5rem; align-items: stretch; max-width: 460px; flex-wrap: wrap;">
-            <input
-              type="email"
-              name="email"
-              required
-              autocomplete="email"
-              placeholder="you@example.com"
-              style="flex: 1; min-width: 220px; padding: 0.75rem 1rem; border: 1px solid var(--border); border-radius: 8px; font-size: 1rem; font-family: inherit;"
-            />
-            <button type="submit" class="cta-btn" style="margin: 0; padding: 0.75rem 1.5rem; white-space: nowrap; border: 0; cursor: pointer;">
-              Join the list
+          <p>Summer 2026 starts <strong>June 22</strong>. Three weeks. Six classes. In person at the Regen Hub. Apply now &mdash; or drop your email and we'll keep you posted on future cohorts.</p>
+          <div style="margin: 1.5rem auto 0; display: flex; gap: 0.75rem; align-items: stretch; max-width: 540px; flex-wrap: wrap; justify-content: center;">
+            <a href="/enroll" class="cta-btn" style="margin: 0; padding: 0.75rem 1.5rem; white-space: nowrap; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 0.4rem;">
+              Apply for Summer 2026
               <ArrowSvg />
-            </button>
-          </form>
+            </a>
+            <a href="/interest" style="padding: 0.75rem 1.5rem; white-space: nowrap; text-decoration: none; color: var(--text); display: inline-flex; align-items: center; gap: 0.4rem; align-self: center;">
+              Or join the list &rarr;
+            </a>
+          </div>
           <p class="cta-aside">Questions? <a href="mailto:ag@unforced.dev">Reach out</a> &mdash; the next step is a conversation.</p>
         </div>
       </section>

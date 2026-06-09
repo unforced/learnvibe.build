@@ -108,9 +108,10 @@ export async function autoEnrollOnSignup(
     const isMarkedEnrolledButOrphaned = app.status === 'enrolled'
 
     if (isSponsoredApproved || isMarkedEnrolledButOrphaned) {
-      // Find the cohort for this application's tier
+      // Enroll into the cohort the application was made for (not a
+      // hardcoded cohort-1 — Summer 2026 and later need this).
       const cohort = await db.select().from(cohorts)
-        .where(eq(cohorts.slug, 'cohort-1'))
+        .where(eq(cohorts.slug, app.cohortSlug ?? 'cohort-1'))
         .get()
       if (cohort) {
         await enrollUserAndNotify(db, env, {

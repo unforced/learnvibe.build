@@ -7,13 +7,10 @@ type LayoutProps = PropsWithChildren<{
   description?: string
   noindex?: boolean
   user?: AuthUser | null
-  clerkPubKey?: string
   fullWidth?: boolean
 }>
 
-const CLERK_CDN = 'https://cdn.jsdelivr.net/npm/@clerk/clerk-js@5/dist/clerk.browser.js'
-
-export const Layout: FC<LayoutProps> = ({ title, description, noindex, user, clerkPubKey, fullWidth, children }) => {
+export const Layout: FC<LayoutProps> = ({ title, description, noindex, user, fullWidth, children }) => {
   const isEnrolled = user?.isEnrolled ?? false
   const isAdmin = user?.role === 'admin' || user?.role === 'facilitator'
 
@@ -75,19 +72,6 @@ export const Layout: FC<LayoutProps> = ({ title, description, noindex, user, cle
             }
           });
         ` }} />
-        {clerkPubKey && (
-          <>
-            <script async crossorigin="anonymous" data-clerk-publishable-key={clerkPubKey} src={CLERK_CDN}></script>
-            <script dangerouslySetInnerHTML={{ __html: `
-              (async function(){
-                try {
-                  await new Promise(function(r,j){var a=0,c=setInterval(function(){a++;if(window.Clerk&&window.Clerk.load){clearInterval(c);r()}else if(a>50){clearInterval(c);j()}},100)});
-                  await window.Clerk.load();
-                } catch(e) { console.log('Clerk session keepalive: load skipped'); }
-              })();
-            `}} />
-          </>
-        )}
       </head>
       <body>
         <nav class="nav">
@@ -96,8 +80,11 @@ export const Layout: FC<LayoutProps> = ({ title, description, noindex, user, cle
             {user ? (
               isEnrolled ? (
                 <>
-                  {/* Enrolled (or admin/facilitator): Cohort 1 | Community | Dashboard | [Admin] | Profile */}
-                  <li><a href="/cohort/cohort-1">Cohort 1</a></li>
+                  {/* Enrolled (or admin/facilitator): Cohort | Community | Dashboard | [Admin] | Profile.
+                      Link targets the user's most recent active cohort via primaryCohortSlug (set in
+                      getUser); falls back to cohort-1 for legacy admin/facilitator records with no
+                      explicit enrollment. */}
+                  <li><a href={`/cohort/${user.primaryCohortSlug ?? 'cohort-1'}`}>Cohort</a></li>
                   <li><a href="/community">Community</a></li>
                   <li><a href="/dashboard">Dashboard</a></li>
                   {isAdmin && (
@@ -111,10 +98,10 @@ export const Layout: FC<LayoutProps> = ({ title, description, noindex, user, cle
                 </>
               ) : (
                 <>
-                  {/* Logged in, not enrolled: Curriculum | Dashboard | Apply | Profile */}
+                  {/* Logged in, not enrolled: Curriculum | Dashboard | Enroll | Profile */}
                   <li class="nav-hide-mobile"><a href="/curriculum">Curriculum</a></li>
                   <li><a href="/dashboard">Dashboard</a></li>
-                  <li><a href="/apply" class="nav-apply">Apply</a></li>
+                  <li><a href="/enroll" class="nav-apply">Enroll</a></li>
                   <li>
                     <a href="/settings/profile" class="nav-user">
                       {user.name || user.email.split('@')[0]}
@@ -124,10 +111,10 @@ export const Layout: FC<LayoutProps> = ({ title, description, noindex, user, cle
               )
             ) : (
               <>
-                {/* Logged out: Curriculum | Sign In | Apply */}
+                {/* Logged out: Curriculum | Sign In | Enroll */}
                 <li class="nav-hide-mobile"><a href="/curriculum">Curriculum</a></li>
                 <li class="nav-hide-mobile"><a href="/sign-in">Sign In</a></li>
-                <li><a href="/apply" class="nav-apply">Apply</a></li>
+                <li><a href="/enroll" class="nav-apply">Enroll</a></li>
               </>
             )}
           </ul>

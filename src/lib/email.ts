@@ -1,21 +1,50 @@
-import { Resend } from 'resend'
 import { getDb } from '../db'
 import { emailLog } from '../db/schema'
 import { emailWrapper } from './email-wrapper'
 import { renderEmailTemplate, renderEmailTemplateFromSource, DEFAULT_TEMPLATES } from './email-templates'
 import { renderMarkdown } from './markdown'
 
-let resendClient: Resend | null = null
+// Email now sends through the Cloudflare Email Service `send_email` binding
+// (env.EMAIL) — no API keys. The `from` domain must be onboarded in the
+// Cloudflare dashboard (Email → Email Sending) with DKIM/SPF/DMARC set up.
+// `SendEmail` / `EmailAddress` are ambient globals from @cloudflare/workers-types.
 
-function getResend(apiKey: string): Resend {
-  if (!resendClient) {
-    resendClient = new Resend(apiKey)
-  }
-  return resendClient
+/** Email is "configured" when the Worker has the EMAIL binding. */
+export function isEmailConfigured(email: SendEmail | undefined): boolean {
+  return !!email
 }
 
-export function isEmailConfigured(apiKey: string | undefined): boolean {
-  return !!apiKey && apiKey.startsWith('re_') && apiKey.length > 10
+/** Parse "Display Name <addr@domain>" into the EmailAddress shape the
+ *  Cloudflare binding wants. Falls back to a bare address string. */
+function parseFromAddress(from: string): EmailAddress | string {
+  const m = from.match(/^\s*(.*?)\s*<([^>]+)>\s*$/)
+  if (m && m[2]) {
+    return { name: m[1].replace(/^["']|["']$/g, '').trim(), email: m[2].trim() }
+  }
+  return from.trim()
+}
+
+/** Best-effort HTML → plain text. Cloudflare (and good deliverability) wants
+ *  a text/plain alternative alongside the HTML part. Not a full renderer —
+ *  just enough to give a readable fallback from our wrapped HTML emails. */
+export function htmlToText(html: string): string {
+  return html
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<head[\s\S]*?<\/head>/gi, '')
+    .replace(/<a\b[^>]*href=(["'])([^"']*)\1[^>]*>([\s\S]*?)<\/a>/gi, '$3 ($2)')
+    .replace(/<\/(p|div|h[1-6]|li|tr|table)>/gi, '\n')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<hr\s*\/?>/gi, '\n----------\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&quot;/gi, '"')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
 }
 
 // Re-export emailWrapper for backwards-compat — preview pages and other
@@ -105,9 +134,9 @@ function broadcastFooter(audience: BroadcastAudience): string {
     case 'enrolled':
       return `You're receiving this because you're enrolled in a Learn Vibe Build cohort. <a href="https://learnvibe.build/dashboard" style="color: #e8612a; text-decoration: none;">View your dashboard</a>.`
     case 'approved':
-      return `You're receiving this because your Learn Vibe Build application was approved. <a href="https://learnvibe.build/apply/status" style="color: #e8612a; text-decoration: none;">Check your status</a>.`
+      return `You're receiving this because your Learn Vibe Build application was approved. <a href="https://learnvibe.build/dashboard" style="color: #e8612a; text-decoration: none;">View your dashboard</a>.`
     case 'applicants':
-      return `You're receiving this because you applied to Learn Vibe Build. <a href="https://learnvibe.build/apply/status" style="color: #e8612a; text-decoration: none;">Check your application status</a>.`
+      return `You're receiving this because you applied to Learn Vibe Build. <a href="https://learnvibe.build/dashboard" style="color: #e8612a; text-decoration: none;">View your dashboard</a>.`
     case 'generic':
     default:
       return `You're receiving this because you're part of the Learn Vibe Build community.`
@@ -125,6 +154,7 @@ export function cohortBroadcastEmail(
       ${markdownHtml}
       <hr class="email-divider">
       <p class="email-muted">${broadcastFooter(audience)}</p>
+      <p class="email-muted">To stop receiving these emails, just reply and let us know.</p>
     `),
   }
 }
@@ -132,12 +162,19 @@ export function cohortBroadcastEmail(
 // ===== SEND FUNCTION =====
 
 interface SendEmailParams {
-  apiKey: string
+  emailBinding: SendEmail
   from: string
-  to: string | string[]
+  /** Single recipient. Array sends are deliberately unsupported — the
+   *  Cloudflare binding would put every address in one visible To: header
+   *  (recipients see each other) and a single bad address fails the whole
+   *  send. Fan out one-per-recipient (see sendBroadcast) instead. */
+  to: string
   subject: string
   html: string
+  text?: string
   replyTo?: string
+  /** Extra headers (whitelisted set only), e.g. List-Unsubscribe on bulk. */
+  headers?: Record<string, string>
   db?: D1Database
   template?: string
 }
@@ -164,63 +201,52 @@ async function logEmailSend(
 }
 
 export async function sendEmail(params: SendEmailParams): Promise<{ success: boolean; error?: string }> {
-  const recipients = Array.isArray(params.to) ? params.to : [params.to]
+  const to = params.to
 
-  if (!isEmailConfigured(params.apiKey)) {
-    console.log(`[Email] Skipped (not configured): "${params.subject}" → ${recipients.join(', ')}`)
-    return { success: true } // Don't fail — just skip when not configured
+  if (!isEmailConfigured(params.emailBinding)) {
+    console.error(`[Email] NOT SENT — no EMAIL binding: "${params.subject}" → ${to}`)
+    // Record the skip so a misconfigured deploy is visible on /admin/emails
+    // instead of vanishing into a console log. Still return success:true so
+    // non-critical callers don't hard-fail; the auth path guards separately.
+    if (params.db && params.template) {
+      await logEmailSend(params.db, to, params.subject, params.template, 'failed', 'EMAIL binding not configured', params.html)
+    }
+    return { success: true }
   }
 
+  // Cloudflare wants a text/plain alternative; derive one from the HTML if
+  // the caller didn't supply it.
+  const text = params.text ?? htmlToText(params.html)
+
   try {
-    const resend = getResend(params.apiKey)
-    const result = await resend.emails.send({
-      from: params.from,
-      to: recipients,
+    // The Cloudflare binding THROWS on failure (Error with .code/.message) —
+    // unlike Resend, which returned an { error } object. So success is the
+    // path that doesn't throw; the catch handles + logs every failure.
+    const result = await params.emailBinding.send({
+      from: parseFromAddress(params.from),
+      to,
       subject: params.subject,
       html: params.html,
+      text,
       replyTo: params.replyTo || 'ag@unforced.dev',
+      ...(params.headers ? { headers: params.headers } : {}),
     })
 
-    if (result.error) {
-      console.error('[Email] Send error:', result.error)
-      if (params.db && params.template) {
-        for (const r of recipients) {
-          // Persist body_html on failure too, so admin can resend without
-          // re-rendering — useful for "the recipient was bad, resend to a
-          // corrected address" workflows.
-          await logEmailSend(params.db, r, params.subject, params.template, 'failed', result.error.message, params.html)
-        }
-      }
-      return { success: false, error: result.error.message }
-    }
-
-    // Treat missing email id as failure — Resend should always return one on success.
-    if (!result.data?.id) {
-      const msg = 'No email id returned by provider'
-      console.error('[Email] Send error:', msg, result)
-      if (params.db && params.template) {
-        for (const r of recipients) {
-          await logEmailSend(params.db, r, params.subject, params.template, 'failed', msg, params.html)
-        }
-      }
-      return { success: false, error: msg }
-    }
-
-    console.log(`[Email] Sent: "${params.subject}" → ${recipients.join(', ')} (id=${result.data.id})`)
+    console.log(`[Email] Sent: "${params.subject}" → ${to} (id=${result.messageId})`)
     if (params.db && params.template) {
-      for (const r of recipients) {
-        await logEmailSend(params.db, r, params.subject, params.template, 'sent', undefined, params.html)
-      }
+      await logEmailSend(params.db, to, params.subject, params.template, 'sent', undefined, params.html)
     }
     return { success: true }
   } catch (err: any) {
-    console.error('[Email] Exception:', err.message)
+    // Persist body_html on failure too, so admin can resend without
+    // re-rendering — useful for "the recipient was bad, resend to a
+    // corrected address" workflows. err.code is one of the E_* codes.
+    const detail = [err?.code, err?.message].filter(Boolean).join(' ').trim() || String(err)
+    console.error('[Email] Send failed:', detail)
     if (params.db && params.template) {
-      for (const r of recipients) {
-        await logEmailSend(params.db, r, params.subject, params.template, 'failed', err.message, params.html)
-      }
+      await logEmailSend(params.db, to, params.subject, params.template, 'failed', detail, params.html)
     }
-    return { success: false, error: err.message }
+    return { success: false, error: detail }
   }
 }
 
@@ -229,7 +255,7 @@ export async function sendEmail(params: SendEmailParams): Promise<{ success: boo
 // renderEmailTemplate(env.DB, key, vars) so DB-stored templates take
 // precedence with a hardcoded fallback when missing.
 
-export type EmailEnv = { RESEND_API_KEY: string; EMAIL_FROM: string; EMAIL_REPLY_TO?: string; DB?: D1Database }
+export type EmailEnv = { EMAIL: SendEmail; EMAIL_FROM: string; EMAIL_REPLY_TO?: string; DB?: D1Database }
 
 async function sendByTemplate(
   env: EmailEnv,
@@ -239,7 +265,7 @@ async function sendByTemplate(
 ) {
   const { subject, html } = await renderEmailTemplate(env.DB, templateKey, vars)
   return sendEmail({
-    apiKey: env.RESEND_API_KEY,
+    emailBinding: env.EMAIL,
     from: env.EMAIL_FROM,
     replyTo: env.EMAIL_REPLY_TO,
     to,
@@ -250,8 +276,22 @@ async function sendByTemplate(
   })
 }
 
-export async function sendApplicationReceived(env: EmailEnv, email: string, name: string) {
-  return sendByTemplate(env, email, 'application_received', { firstName: name.split(' ')[0] })
+export async function sendMagicLink(env: EmailEnv, email: string, magicLink: string) {
+  return sendByTemplate(env, email, 'magic_link', { magicLink })
+}
+
+/** Confirmation link sent to the NEW address when a user changes their email. */
+export async function sendEmailChange(env: EmailEnv, newEmail: string, confirmLink: string) {
+  return sendByTemplate(env, newEmail, 'email_change', { confirmLink })
+}
+
+/** Heads-up sent to the OLD address after an email change lands (security). */
+export async function sendEmailChangedNotice(env: EmailEnv, oldEmail: string, newEmail: string) {
+  return sendByTemplate(env, oldEmail, 'email_changed_notice', { newEmail })
+}
+
+export async function sendApplicationReceived(env: EmailEnv, email: string, name: string, cohortTitle: string = 'the next cohort') {
+  return sendByTemplate(env, email, 'application_received', { firstName: name.split(' ')[0], cohortTitle })
 }
 
 export async function sendApplicationApproved(
@@ -262,12 +302,13 @@ export async function sendApplicationApproved(
   tierLabel: string,
   amountFormatted: string,
   isSponsored: boolean,
+  cohortTitle: string = 'the next cohort',
 ) {
   const firstName = name.split(' ')[0]
   if (isSponsored) {
-    return sendByTemplate(env, email, 'application_approved_sponsored', { firstName, paymentUrl })
+    return sendByTemplate(env, email, 'application_approved_sponsored', { firstName, paymentUrl, cohortTitle })
   }
-  return sendByTemplate(env, email, 'application_approved', { firstName, paymentUrl, tierLabel, amountFormatted })
+  return sendByTemplate(env, email, 'application_approved', { firstName, paymentUrl, tierLabel, amountFormatted, cohortTitle })
 }
 
 export async function sendApplicationPriceChanged(
@@ -279,18 +320,19 @@ export async function sendApplicationPriceChanged(
   tierLabel: string,
   paymentUrl: string,
   isSponsored: boolean,
+  cohortTitle: string = 'the cohort',
 ) {
   const firstName = name.split(' ')[0]
   if (isSponsored) {
-    return sendByTemplate(env, email, 'application_price_changed_sponsored', { firstName, paymentUrl })
+    return sendByTemplate(env, email, 'application_price_changed_sponsored', { firstName, paymentUrl, cohortTitle })
   }
   return sendByTemplate(env, email, 'application_price_changed', {
-    firstName, oldAmountFormatted, newAmountFormatted, tierLabel, paymentUrl,
+    firstName, oldAmountFormatted, newAmountFormatted, tierLabel, paymentUrl, cohortTitle,
   })
 }
 
-export async function sendApplicationRejected(env: EmailEnv, email: string, name: string) {
-  return sendByTemplate(env, email, 'application_rejected', { firstName: name.split(' ')[0] })
+export async function sendApplicationRejected(env: EmailEnv, email: string, name: string, cohortTitle: string = 'the cohort') {
+  return sendByTemplate(env, email, 'application_rejected', { firstName: name.split(' ')[0], cohortTitle })
 }
 
 export async function sendEnrollmentConfirmed(
@@ -318,11 +360,19 @@ export async function sendBroadcast(
   markdownHtml: string,
   audience: BroadcastAudience = 'enrolled',
 ): Promise<BroadcastResult> {
-  // Resend's free tier caps at 5 requests/second. Send in chunks of 4
-  // (one under the limit for safety) with a 1.1s delay between chunks
-  // so a 50-recipient broadcast takes ~13s instead of failing.
+  // Throttle so a large broadcast doesn't trip Cloudflare's send rate
+  // limit (E_RATE_LIMIT_EXCEEDED). Send in chunks of 4 with a 1.1s delay
+  // between chunks so a 50-recipient broadcast takes ~13s instead of failing.
   const CHUNK_SIZE = 4
   const CHUNK_DELAY_MS = 1100
+
+  // List-Unsubscribe (mailto form) on bulk mail — Gmail/Yahoo bulk-sender
+  // guidance and a meaningful deliverability signal as the new domain warms
+  // up. Pairs with the visible "reply to unsubscribe" line in the footer.
+  // (One-click HTTPS unsubscribe is a future enhancement; mailto is fine at
+  // our volume, well under the 5k/day One-Click threshold.)
+  const unsubAddr = env.EMAIL_REPLY_TO || 'ag@unforced.dev'
+  const broadcastHeaders = { 'List-Unsubscribe': `<mailto:${unsubAddr}?subject=Unsubscribe>` }
 
   const sent: string[] = []
   const failed: { email: string; error: string }[] = []
@@ -333,11 +383,12 @@ export async function sendBroadcast(
       chunk.map(email => {
         const tpl = cohortBroadcastEmail(subject, markdownHtml, audience)
         return sendEmail({
-          apiKey: env.RESEND_API_KEY,
+          emailBinding: env.EMAIL,
           from: env.EMAIL_FROM,
           replyTo: env.EMAIL_REPLY_TO,
           to: email,
           ...tpl,
+          headers: broadcastHeaders,
           db: env.DB,
           template: 'broadcast',
         })

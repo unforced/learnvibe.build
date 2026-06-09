@@ -5,7 +5,7 @@ import { getDb } from '../db'
 import { applications, cohorts, payments, enrollments, users } from '../db/schema'
 import { enrollUserAndNotify } from '../lib/enrollment'
 import { getStripe, isStripeConfigured, getApplicationAmount, formatCents } from '../lib/stripe'
-import { syncUser, timingSafeEqual } from '../lib/auth'
+import { timingSafeEqual } from '../lib/auth'
 import type { AppContext } from '../types'
 
 const payment = new Hono<AppContext>()
@@ -19,7 +19,7 @@ payment.get('/payment/checkout/:applicationId', async (c) => {
 
   if (!isStripeConfigured(c.env.STRIPE_SECRET_KEY)) {
     return c.html(
-      <Layout title="Payment" user={user} clerkPubKey={c.env.CLERK_PUBLISHABLE_KEY}>
+      <Layout title="Payment" user={user}>
         <div class="page-section" style="max-width: 600px; margin: 0 auto; text-align: center; padding: 6rem 0;">
           <h2>Payment Not Available</h2>
           <p style="margin-top: 1rem; color: var(--text-secondary);">
@@ -36,7 +36,7 @@ payment.get('/payment/checkout/:applicationId', async (c) => {
 
   if (!app) {
     return c.html(
-      <Layout title="Not Found" user={user} clerkPubKey={c.env.CLERK_PUBLISHABLE_KEY}>
+      <Layout title="Not Found" user={user}>
         <div class="page-section" style="max-width: 600px; margin: 0 auto; text-align: center; padding: 6rem 0;">
           <h2>Application Not Found</h2>
           <p style="margin-top: 1rem; color: var(--text-secondary);">
@@ -62,11 +62,11 @@ payment.get('/payment/checkout/:applicationId', async (c) => {
     (app.userId === user.id || app.email.toLowerCase() === user.email.toLowerCase())
   if (!hasValidToken && !isOwner) {
     return c.html(
-      <Layout title="Access Denied" user={user} clerkPubKey={c.env.CLERK_PUBLISHABLE_KEY}>
+      <Layout title="Access Denied" user={user}>
         <div class="page-section" style="max-width: 600px; margin: 0 auto; text-align: center; padding: 6rem 0;">
           <h2>Access Denied</h2>
           <p style="margin-top: 1rem; color: var(--text-secondary);">
-            This payment link is invalid or has expired. Use the link from your approval email, or check your <a href="/apply/status" style="color: var(--accent);">application status</a>.
+            This payment link is invalid or has expired. Use the link from your approval email, or <a href="/dashboard" style="color: var(--accent);">sign in to your dashboard</a> to find it.
           </p>
         </div>
       </Layout>,
@@ -77,7 +77,7 @@ payment.get('/payment/checkout/:applicationId', async (c) => {
   // Must be approved
   if (app.status !== 'approved') {
     return c.html(
-      <Layout title="Payment" user={user} clerkPubKey={c.env.CLERK_PUBLISHABLE_KEY}>
+      <Layout title="Payment" user={user}>
         <div class="page-section" style="max-width: 600px; margin: 0 auto; text-align: center; padding: 6rem 0;">
           <h2>Application Not Ready</h2>
           <p style="margin-top: 1rem; color: var(--text-secondary);">
@@ -85,7 +85,7 @@ payment.get('/payment/checkout/:applicationId', async (c) => {
               ? "Your application is still under review. We'll let you know when it's approved."
               : "This application is not eligible for payment."}
           </p>
-          <a href="/apply/status" style="margin-top: 2rem; display: inline-block; color: var(--accent);">Check Application Status →</a>
+          <a href="/dashboard" style="margin-top: 2rem; display: inline-block; color: var(--accent);">Go to your dashboard →</a>
         </div>
       </Layout>
     )
@@ -103,7 +103,7 @@ payment.get('/payment/checkout/:applicationId', async (c) => {
 
   if (existingPayment) {
     return c.html(
-      <Layout title="Already Paid" user={user} clerkPubKey={c.env.CLERK_PUBLISHABLE_KEY}>
+      <Layout title="Already Paid" user={user}>
         <div class="page-section" style="max-width: 600px; margin: 0 auto; text-align: center; padding: 6rem 0;">
           <h2>Payment Already Completed</h2>
           <p style="margin-top: 1rem; color: var(--text-secondary);">
@@ -120,7 +120,7 @@ payment.get('/payment/checkout/:applicationId', async (c) => {
 
   if (!cohort) {
     return c.html(
-      <Layout title="Error" user={user} clerkPubKey={c.env.CLERK_PUBLISHABLE_KEY}>
+      <Layout title="Error" user={user}>
         <div class="page-section" style="max-width: 600px; margin: 0 auto; text-align: center; padding: 6rem 0;">
           <h2>Cohort Not Found</h2>
           <p style="margin-top: 1rem; color: var(--text-secondary);">The cohort for this application could not be found.</p>
@@ -163,9 +163,9 @@ payment.get('/payment/checkout/:applicationId', async (c) => {
 
     // Either signed-out, or signed in as someone else (e.g. admin).
     // Tell them to sign in/up with the application's email — the
-    // autoEnrollOnSignup hook in syncUser will then enroll them.
+    // autoEnrollOnSignup hook in findOrCreateUser will then enroll them.
     return c.html(
-      <Layout title="Complete Your Enrollment" user={user} clerkPubKey={c.env.CLERK_PUBLISHABLE_KEY}>
+      <Layout title="Complete Your Enrollment" user={user}>
         <div class="page-section" style="max-width: 600px; margin: 0 auto; text-align: center; padding: 4rem 0;">
           <p class="section-label">Sponsored</p>
           <h2>You're In!</h2>
@@ -287,7 +287,7 @@ payment.get('/payment/checkout/:applicationId', async (c) => {
   } catch (error) {
     console.error('Stripe checkout error:', error)
     return c.html(
-      <Layout title="Payment Error" user={user} clerkPubKey={c.env.CLERK_PUBLISHABLE_KEY}>
+      <Layout title="Payment Error" user={user}>
         <div class="page-section" style="max-width: 600px; margin: 0 auto; text-align: center; padding: 6rem 0;">
           <h2>Payment Error</h2>
           <p style="margin-top: 1rem; color: var(--text-secondary);">
@@ -311,7 +311,7 @@ payment.get('/payment/success', async (c) => {
 
   if (sponsored === 'true') {
     return c.html(
-      <Layout title="Welcome!" user={user} clerkPubKey={c.env.CLERK_PUBLISHABLE_KEY}>
+      <Layout title="Welcome!" user={user}>
         <div class="page-section" style="max-width: 600px; margin: 0 auto; text-align: center; padding: 4rem 0;">
           <div style="font-size: 3rem; margin-bottom: 1rem;">🎉</div>
           <h2>You're enrolled!</h2>
@@ -387,7 +387,7 @@ payment.get('/payment/success', async (c) => {
   // green checkmark. The webhook will reconcile in the background.
   if (verificationFailed || (sessionId && !verifiedPaid)) {
     return c.html(
-      <Layout title="Processing Payment" user={user} clerkPubKey={c.env.CLERK_PUBLISHABLE_KEY}>
+      <Layout title="Processing Payment" user={user}>
         <div class="page-section" style="max-width: 600px; margin: 0 auto; text-align: center; padding: 4rem 0;">
           <h2>Processing your payment…</h2>
           <p class="lead" style="margin-top: 1rem;">
@@ -402,7 +402,7 @@ payment.get('/payment/success', async (c) => {
   }
 
   return c.html(
-    <Layout title="Payment Successful" user={user} clerkPubKey={c.env.CLERK_PUBLISHABLE_KEY}>
+    <Layout title="Payment Successful" user={user}>
       <div class="page-section" style="max-width: 600px; margin: 0 auto; text-align: center; padding: 4rem 0;">
         <div style="font-size: 3rem; margin-bottom: 1rem;">🎉</div>
         <h2>Payment successful!</h2>
@@ -438,7 +438,7 @@ payment.get('/payment/cancelled', async (c) => {
   }
 
   return c.html(
-    <Layout title="Payment Cancelled" user={user} clerkPubKey={c.env.CLERK_PUBLISHABLE_KEY}>
+    <Layout title="Payment Cancelled" user={user}>
       <div class="page-section" style="max-width: 600px; margin: 0 auto; text-align: center; padding: 4rem 0;">
         <h2>Payment Cancelled</h2>
         <p class="lead" style="margin-top: 1rem;">

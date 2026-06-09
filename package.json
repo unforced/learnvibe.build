@@ -10,12 +10,9 @@
     "db:migrate:remote": "wrangler d1 execute learnvibe-db --remote --file"
   },
   "dependencies": {
-    "@clerk/backend": "^1",
-    "@hono/clerk-auth": "^2",
     "drizzle-orm": "^0.36",
     "hono": "^4",
     "marked": "^17.0.4",
-    "resend": "^6.9.3",
     "sanitize-html": "^2.17.3",
     "stripe": "^20.4.1"
   },

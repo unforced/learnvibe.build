@@ -5,7 +5,6 @@ import { getDb } from '../db'
 import { interests, users } from '../db/schema'
 import { sendEmail, isEmailConfigured } from '../lib/email'
 import { renderEmailTemplate } from '../lib/email-templates'
-import { addToAudience } from '../lib/resend-audience'
 import type { AppContext } from '../types'
 
 const interest = new Hono<AppContext>()
@@ -26,7 +25,7 @@ interest.get('/interest', (c) => {
   return c.html(
     <Layout
       title="Join the interest list — Learn Vibe Build"
-      description="Drop your email to hear about Cohort 2 and what's next."
+      description="Drop your email to hear about Learn Vibe Build cohorts and events."
       user={user}
     >
       <div class="page-section" style="max-width: 520px; margin: 0 auto;">
@@ -35,7 +34,7 @@ interest.get('/interest', (c) => {
         <p class="section-label" style="margin-top: 1.5rem;">Interest list</p>
         <h2>Stay in the loop</h2>
         <p class="lead">
-          Cohort 1 is in flight; Cohort 2 is forming. Drop your email and we'll be in touch — thoughtful and infrequent.
+          Summer 2026 is enrolling now &mdash; <a href="/enroll" style="color: var(--accent);">apply here</a>. For future cohorts and Hub events, drop your email below and we'll be in touch &mdash; thoughtful and infrequent.
         </p>
 
         {error && errorMessages[error] && (
@@ -89,12 +88,9 @@ interest.post('/api/interests', async (c) => {
     .get()
   const linkedUserId = existingUser?.id ?? null
 
-  // Best-effort audience sync. Fails silently; admin can resync via the
-  // resend_contact_id column on /admin/interests.
-  const audienceId = c.env.RESEND_AUDIENCE_INTEREST || ''
-  const audienceResult = audienceId
-    ? await addToAudience(c.env, email, name, audienceId)
-    : { contactId: null }
+  // The interest list lives in D1 (interests table). The old Resend
+  // audience mirror was retired with the Cloudflare email migration —
+  // resend_contact_id stays null for new rows (column kept for history).
 
   try {
     await db.insert(interests).values({
@@ -104,7 +100,7 @@ interest.post('/api/interests', async (c) => {
       // interests_json defaults to '[]'; we no longer collect tags via the
       // public form. Schema unchanged so old rows keep their data.
       interestsJson: '[]',
-      resendContactId: audienceResult.contactId,
+      resendContactId: null,
       userId: linkedUserId,
     })
   } catch (e) {
@@ -112,11 +108,11 @@ interest.post('/api/interests', async (c) => {
     return c.redirect('/interest?error=server_error')
   }
 
-  if (!existing && isEmailConfigured(c.env.RESEND_API_KEY)) {
+  if (!existing && isEmailConfigured(c.env.EMAIL)) {
     try {
       const tpl = await renderEmailTemplate(c.env.DB, 'interest_received', {})
       await sendEmail({
-        apiKey: c.env.RESEND_API_KEY,
+        emailBinding: c.env.EMAIL,
         from: c.env.EMAIL_FROM,
         replyTo: c.env.EMAIL_REPLY_TO,
         to: email,
@@ -147,7 +143,7 @@ interest.get('/interest/success', (c) => {
       <div class="page-section success-message" style="max-width: 600px; margin: 0 auto;">
         <h2>You're on the list</h2>
         <p class="lead">
-          We'll be in touch as Cohort 2 takes shape. In the meantime, feel free to <a href="mailto:ag@unforced.dev" style="color: var(--accent);">reply with whatever's alive in you</a> around AI right now — questions, ideas, things you're trying to make.
+          We'll be in touch as new cohorts and events take shape. In the meantime, feel free to <a href="mailto:ag@unforced.dev" style="color: var(--accent);">reply with whatever's alive in you</a> around AI right now — questions, ideas, things you're trying to make.
         </p>
 
         {user ? (
@@ -156,7 +152,7 @@ interest.get('/interest/success', (c) => {
               <strong>Want to take the next step?</strong>
             </p>
             <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
-              <a href="/apply" style="display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.6rem 1.1rem; background: var(--accent); color: white; border-radius: 6px; text-decoration: none; font-size: 0.9rem; font-weight: 500;">
+              <a href="/enroll" style="display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.6rem 1.1rem; background: var(--accent); color: white; border-radius: 6px; text-decoration: none; font-size: 0.9rem; font-weight: 500;">
                 Apply &rarr;
               </a>
               <a href="/dashboard" style="display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.6rem 1.1rem; background: var(--white); border: 1px solid var(--border); color: var(--text); border-radius: 6px; text-decoration: none; font-size: 0.9rem; font-weight: 500;">

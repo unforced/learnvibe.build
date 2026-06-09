@@ -1,19 +1,20 @@
 import { Hono } from 'hono'
+import { desc } from 'drizzle-orm'
 import { Layout } from '../components/Layout'
 import { getDb } from '../db'
-import { feedback } from '../db/schema'
+import { feedback, cohorts } from '../db/schema'
 import type { AppContext } from '../types'
 
 const feedbackRoutes = new Hono<AppContext>()
 
 // ===== FEEDBACK FORM =====
-feedbackRoutes.get('/feedback', (c) => {
+feedbackRoutes.get('/feedback', async (c) => {
   const user = c.get('user')
   const submitted = c.req.query('submitted')
 
   if (submitted === 'true') {
     return c.html(
-      <Layout title="Thank You" user={user} clerkPubKey={c.env.CLERK_PUBLISHABLE_KEY}>
+      <Layout title="Thank You" user={user}>
         <div class="page-section success-message">
           <div style="font-size: 3rem; margin-bottom: 1rem;">🙏</div>
           <h2>Thank you for your feedback</h2>
@@ -31,11 +32,49 @@ feedbackRoutes.get('/feedback', (c) => {
     )
   }
 
+  // Sign-in required. Everyone we'd want feedback from has an account, and
+  // gating it links feedback to the person + lets us pre-fill identity and
+  // cohort. Signed-out visitors get a sign-in gate instead of the form.
+  if (!user) {
+    return c.html(
+      <Layout
+        title="Share Your Feedback — sign in"
+        description="Sign in to share your Learn Vibe Build feedback."
+        user={null}
+       
+      >
+        <div class="page-section" style="max-width: 560px; margin: 0 auto;">
+          <p class="section-label">Feedback</p>
+          <h2>Sign in to share your feedback</h2>
+          <p class="lead">
+            We ask you to sign in so your feedback links to your account &mdash; no re-typing who you are, and we know which cohort you're speaking from.
+          </p>
+          <div style="margin-top: 1.5rem; display: flex; gap: 1rem; flex-wrap: wrap; align-items: center;">
+            <a href="/sign-in?redirect_url=/feedback" style="display: inline-flex; align-items: center; gap: 0.4rem; background: var(--accent); color: white; padding: 0.75rem 1.5rem; border-radius: 6px; text-decoration: none; font-weight: 500;">
+              Sign in &rarr;
+            </a>
+            <a href="/sign-up?redirect_url=/feedback" style="color: var(--text-secondary); text-decoration: none; font-size: 0.95rem;">Don't have an account? Create one &rarr;</a>
+          </div>
+        </div>
+      </Layout>
+    )
+  }
+
   const error = c.req.query('error')
   const errorMessages: Record<string, string> = {
-    missing_fields: 'Please fill out at least your name, email, and one feedback field.',
+    missing_fields: 'Please fill out at least one feedback field.',
     server_error: 'Something went wrong. Please try again.',
   }
+
+  // Dynamic cohort list — pulled from the DB so it never goes stale as new
+  // cohorts run. Newest first. Signed-in members get their own cohort
+  // pre-selected via primaryCohortSlug.
+  const db = getDb(c.env.DB)
+  const allCohorts = await db.select({ slug: cohorts.slug, title: cohorts.title })
+    .from(cohorts)
+    .orderBy(desc(cohorts.startDate))
+    .all()
+  const preselectedCohort = user?.primaryCohortSlug ?? ''
 
   return c.html(
     <Layout
@@ -57,23 +96,22 @@ feedbackRoutes.get('/feedback', (c) => {
         )}
 
         <form method="post" action="/api/feedback" class="apply-form">
-          <div class="form-group">
-            <label for="name">Your name</label>
-            <input type="text" id="name" name="name" required autocomplete="name"
-              value={user?.name || ''} />
-          </div>
-
-          <div class="form-group">
-            <label for="email">Email</label>
-            <input type="email" id="email" name="email" required autocomplete="email"
-              value={user?.email || ''} />
+          {/* Identity comes from the session — the POST handler uses
+              session name/email/userId, not the form. */}
+          <div style="margin-bottom: 1.5rem; padding: 0.85rem 1rem; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; font-size: 0.9rem;">
+            <span style="font-family: var(--font-mono); font-size: 0.7rem; text-transform: uppercase; color: var(--text-tertiary); letter-spacing: 0.05em; margin-right: 0.5rem;">From</span>
+            <strong>{user.name || user.email}</strong>
+            {user.name && <span style="color: var(--text-tertiary); margin-left: 0.4rem; font-family: var(--font-mono); font-size: 0.85rem;">&lt;{user.email}&gt;</span>}
           </div>
 
           <div class="form-group">
             <label for="cohort">Which cohort were you in?</label>
             <select id="cohort" name="cohort_slug">
-              <option value="cohort-0">Pilot Cohort (Cohort 0) — Foundations</option>
-              <option value="other">Other / Just attended an event</option>
+              {allCohorts.map(co => (
+                <option value={co.slug} selected={co.slug === preselectedCohort}>{co.title}</option>
+              ))}
+              <option value="cohort-0" selected={preselectedCohort === 'cohort-0'}>Pilot Cohort &mdash; Foundations</option>
+              <option value="other" selected={!preselectedCohort}>Other / just attended an event</option>
             </select>
           </div>
 

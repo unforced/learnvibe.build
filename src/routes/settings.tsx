@@ -4,6 +4,8 @@ import { Layout } from '../components/Layout'
 import { getDb } from '../db'
 import { users, apiKeys, oauthTokens, oauthClients } from '../db/schema'
 import { generateApiKey, hashApiKey, getKeyPrefix } from '../lib/api-auth'
+import { createEmailChangeToken, consumeEmailChangeToken } from '../lib/email-change'
+import { sendEmailChange, sendEmailChangedNotice, isEmailConfigured } from '../lib/email'
 import type { AppContext } from '../types'
 
 const settingsRoutes = new Hono<AppContext>()
@@ -21,9 +23,20 @@ settingsRoutes.get('/settings/profile', async (c) => {
 
   const saved = c.req.query('saved')
   const error = c.req.query('error')
+  // Email-change flow signals
+  const emailChanged = c.req.query('email_changed')
+  const emailPending = c.req.query('email_pending')
+  const emailError = c.req.query('email_error')
+  const emailErrorMessages: Record<string, string> = {
+    missing: 'Please enter an email address.',
+    invalid: "That email doesn't look right — give it another go.",
+    same: "That's already your email.",
+    taken: 'That email is already used by another account.',
+    server: 'Something went wrong sending the confirmation. Please try again.',
+  }
 
   return c.html(
-    <Layout title="Edit Profile" user={user} clerkPubKey={c.env.CLERK_PUBLISHABLE_KEY}>
+    <Layout title="Edit Profile" user={user}>
       <div class="page-section" style="max-width: 600px; margin: 0 auto;">
         <a href="/community" class="back-link">← Community</a>
 
@@ -204,9 +217,58 @@ settingsRoutes.get('/settings/profile', async (c) => {
           </div>
         </form>
 
-        <div style="margin-top: 3rem; padding-top: 2rem; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+        {/* ===== ACCOUNT EMAIL ===== */}
+        <div id="email" style="margin-top: 3rem; padding-top: 2rem; border-top: 1px solid var(--border);">
+          <h3 style="font-family: var(--font-display); margin-bottom: 0.5rem;">Account email</h3>
+          <p style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 1rem;">
+            This is the email you sign in with. Changing it sends a confirmation link to the new address — the change only takes effect once you click it while signed in here.
+          </p>
+
+          {emailChanged && (
+            <div style="margin-bottom: 1rem; padding: 1rem; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; color: #166534;">
+              Your sign-in email is now <strong>{profile.email}</strong>.
+            </div>
+          )}
+
+          {emailPending && (
+            <div style="margin-bottom: 1rem; padding: 1rem; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; color: #1e40af;">
+              Almost there — we sent a confirmation link to <strong>{emailPending}</strong>. Open it while signed in here to finish. Until then, keep signing in with <strong>{profile.email}</strong>.
+            </div>
+          )}
+
+          {emailError && (
+            <div style="margin-bottom: 1rem; padding: 1rem; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; color: #991b1b;">
+              {emailErrorMessages[emailError] || 'Something went wrong. Please try again.'}
+            </div>
+          )}
+
+          <form method="post" action="/settings/email" style="display: flex; gap: 0.75rem; align-items: flex-end; flex-wrap: wrap;">
+            <div style="flex: 1; min-width: 240px;">
+              <label for="new_email" style="display: block; font-weight: 500; margin-bottom: 0.5rem; font-size: 0.9rem;">
+                Current: <code style="font-family: var(--font-mono); font-size: 0.82rem; color: var(--text-secondary);">{profile.email}</code>
+              </label>
+              <input
+                type="email"
+                id="new_email"
+                name="email"
+                required
+                placeholder="new@email.com"
+                autocomplete="email"
+                style="width: 100%; padding: 0.65rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.95rem; background: var(--surface); color: var(--text);"
+              />
+            </div>
+            <button
+              type="submit"
+              style="background: var(--accent); color: white; border: none; padding: 0.65rem 1.25rem; border-radius: 6px; font-size: 0.95rem; font-weight: 500; cursor: pointer; white-space: nowrap;"
+            >
+              Send confirmation link
+            </button>
+          </form>
+        </div>
+
+        <div style="margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
           <p style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--text-tertiary); margin: 0;">
-            {user.email} · {user.role}
+            {user.role}
           </p>
           <a href="/settings/api-keys" style="font-size: 0.85rem; color: var(--accent); text-decoration: none;">
             API Keys →
@@ -248,7 +310,7 @@ settingsRoutes.get('/settings/api-keys', async (c) => {
   const error = c.req.query('error')
 
   return c.html(
-    <Layout title="API Keys" user={user} clerkPubKey={c.env.CLERK_PUBLISHABLE_KEY}>
+    <Layout title="API Keys" user={user}>
       <div class="page-section" style="max-width: 600px; margin: 0 auto;">
         <a href="/settings/profile" class="back-link">← Profile Settings</a>
 
@@ -415,6 +477,120 @@ settingsRoutes.get('/settings/api-keys', async (c) => {
       </div>
     </Layout>
   )
+})
+
+// ===== CHANGE ACCOUNT EMAIL =====
+// Request: signed-in user submits a new email → we email a confirmation link
+// to the NEW address (proves they control it). The change is NOT applied yet.
+settingsRoutes.post('/settings/email', async (c) => {
+  const user = c.get('user')
+  if (!user) return c.redirect('/sign-in')
+
+  const body = await c.req.parseBody()
+  const newEmail = String(body.email || '').trim().toLowerCase()
+  const back = (q: string) => c.redirect(`/settings/profile?${q}#email`)
+
+  if (!newEmail) return back('email_error=missing')
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail) || newEmail.length > 320) return back('email_error=invalid')
+  if (newEmail === user.email.toLowerCase()) return back('email_error=same')
+
+  // A confirmation email must actually be sendable, or the user would be stuck.
+  if (!isEmailConfigured(c.env.EMAIL)) {
+    console.error('email change request: EMAIL binding not configured')
+    return back('email_error=server')
+  }
+
+  const db = getDb(c.env.DB)
+
+  // Reject up front if another account already owns this email (re-checked at
+  // confirm time too, since someone could claim it in the interim).
+  const taken = await db.select({ id: users.id }).from(users).where(eq(users.email, newEmail)).get()
+  if (taken && taken.id !== user.id) return back('email_error=taken')
+
+  try {
+    const token = await createEmailChangeToken(db, { userId: user.id, newEmail })
+    const origin = new URL(c.req.url).origin
+    const link = `${origin}/settings/email/verify?token=${encodeURIComponent(token)}`
+    const result = await sendEmailChange(c.env, newEmail, link)
+    if (!result.success) {
+      console.error('email change send failed:', result.error)
+      return back('email_error=server')
+    }
+  } catch (e) {
+    console.error('email change request failed:', e)
+    return back('email_error=server')
+  }
+
+  return back(`email_pending=${encodeURIComponent(newEmail)}`)
+})
+
+// Confirm: clicked from the new inbox. Requires an active session for the SAME
+// account (so a mistyped/hostile address can't be used to take over an
+// account — the attacker can't be signed in as the victim). Sign-in still uses
+// the CURRENT email until the change lands.
+settingsRoutes.get('/settings/email/verify', async (c) => {
+  const token = c.req.query('token') || ''
+  const user = c.get('user')
+
+  const expiredPage = (
+    <Layout title="Link expired" user={user}>
+      <div class="page-section" style="max-width: 480px; margin: 0 auto; text-align: center; padding: 5rem 0;">
+        <h2>This confirmation link is no longer valid</h2>
+        <p style="margin-top: 1rem; color: var(--text-secondary);">
+          Email-change links work once and expire after an hour. Request a fresh one from your profile settings.
+        </p>
+        <a href="/settings/profile#email" style="margin-top: 1.5rem; display: inline-block; background: var(--accent); color: white; padding: 0.75rem 1.5rem; border-radius: 6px; text-decoration: none; font-weight: 500;">
+          Back to settings &rarr;
+        </a>
+      </div>
+    </Layout>
+  )
+
+  // Must be signed in to confirm. Bounce through sign-in (using the current
+  // email) and return to this exact link — WITHOUT consuming the token yet.
+  if (!user) {
+    return c.redirect(`/sign-in?redirect_url=${encodeURIComponent(`/settings/email/verify?token=${token}`)}`)
+  }
+
+  const db = getDb(c.env.DB)
+  const data = await consumeEmailChangeToken(db, token)
+  if (!data) return c.html(expiredPage, 410)
+
+  // The signed-in account must match the one the token was minted for.
+  if (data.userId !== user.id) {
+    return c.html(
+      <Layout title="Wrong account" user={user}>
+        <div class="page-section" style="max-width: 480px; margin: 0 auto; text-align: center; padding: 5rem 0;">
+          <h2>This link is for a different account</h2>
+          <p style="margin-top: 1rem; color: var(--text-secondary);">
+            Sign in as the account you requested the change for, then open the link again.
+          </p>
+          <a href="/settings/profile" style="margin-top: 1.5rem; display: inline-block; color: var(--accent);">← Back to settings</a>
+        </div>
+      </Layout>,
+      403,
+    )
+  }
+
+  // Re-check uniqueness at confirm time — someone may have taken the address
+  // since the request was made.
+  const taken = await db.select({ id: users.id }).from(users).where(eq(users.email, data.newEmail)).get()
+  if (taken && taken.id !== user.id) {
+    return c.redirect('/settings/profile?email_error=taken#email')
+  }
+
+  const oldEmail = user.email
+  await db.update(users)
+    .set({ email: data.newEmail, updatedAt: new Date().toISOString() })
+    .where(eq(users.id, user.id))
+
+  // The session cookie keys on user.id, not email, so the user stays signed
+  // in. Notify the old address as a security heads-up (best-effort).
+  if (oldEmail && oldEmail.toLowerCase() !== data.newEmail) {
+    c.executionCtx.waitUntil(sendEmailChangedNotice(c.env, oldEmail, data.newEmail))
+  }
+
+  return c.redirect('/settings/profile?email_changed=1#email')
 })
 
 export default settingsRoutes

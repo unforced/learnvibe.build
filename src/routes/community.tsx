@@ -19,7 +19,7 @@ communityRoutes.get('/community', async (c) => {
   const hasAccess = await hasCommunityAccess(c.env.DB, user)
   if (!hasAccess) {
     return c.html(
-      <Layout title="Community" user={user} clerkPubKey={c.env.CLERK_PUBLISHABLE_KEY}>
+      <Layout title="Community" user={user}>
         <div class="page-section" style="max-width: 600px; margin: 0 auto; text-align: center; padding: 4rem 0;">
           <p class="section-label">Community</p>
           <h2>Join the Community</h2>
@@ -80,7 +80,7 @@ communityRoutes.get('/community', async (c) => {
     .all()
 
   return c.html(
-    <Layout title="Community" user={user} clerkPubKey={c.env.CLERK_PUBLISHABLE_KEY}>
+    <Layout title="Community" user={user}>
       <div class="page-section">
         <a href="/dashboard" class="back-link">← Dashboard</a>
 

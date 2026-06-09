@@ -13,9 +13,14 @@ database_name = "learnvibe-db"
 database_id = "3d67d43b-4840-4f33-a297-83d94f355a20"
 migrations_dir = "drizzle/migrations"
 
+# Cloudflare Email Service — transactional send binding (env.EMAIL).
+# The `from` domain (learnvibe.build) must be onboarded in the dashboard:
+# Email → Email Sending, with DKIM/SPF/DMARC records on the zone.
+[[send_email]]
+name = "EMAIL"
+
 [vars]
-CLERK_PUBLISHABLE_KEY = "pk_test_dG9waWNhbC1yYWJiaXQtNjAuY2xlcmsuYWNjb3VudHMuZGV2JA"
-EMAIL_FROM = "Learn Vibe Build <hello@mail.unforced.dev>"
+EMAIL_FROM = "Learn Vibe Build <hello@learnvibe.build>"
 EMAIL_REPLY_TO = "ag@unforced.dev"
 
 # Custom domain
