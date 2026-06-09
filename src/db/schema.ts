@@ -84,6 +84,11 @@ export const lessons = sqliteTable('lessons', {
    *  admin_upsert_lesson (often by piping the transcript through Claude
    *  and saving back). NULL until summarized. See #45+. */
   transcriptSummary: text('transcript_summary'),
+  /** Slide deck for the live session, stored as deck-model JSON (see
+   *  src/lib/deck-schema.ts for the vocabulary). Rendered server-side at
+   *  /cohort/:slug/week/:num/slides by src/lib/deck-render.ts. Authored
+   *  via the admin_upsert_deck MCP tool. NULL = no deck for this week. */
+  slidesJson: text('slides_json'),
   status: text('status').notNull().default('draft'), // 'draft' | 'published'
   sortOrder: integer('sort_order').notNull().default(0),
   createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),

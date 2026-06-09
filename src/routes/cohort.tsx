@@ -6,6 +6,8 @@ import { cohorts, lessons, lessonProgress, artifacts, users } from '../db/schema
 import { or, desc } from 'drizzle-orm'
 import { renderMarkdown } from '../lib/markdown'
 import { canAccessCohort } from '../lib/access'
+import { validateDeck } from '../lib/deck-schema'
+import { renderDeckHtml } from '../lib/deck-render'
 import { generateCohortICS } from '../lib/ics'
 import { isAdmin } from '../lib/auth'
 import type { AppContext } from '../types'
@@ -959,6 +961,82 @@ cohortRoutes.get('/cohort/:slug/week/:num', async (c) => {
       </div>
     </Layout>
   )
+})
+
+// Slide deck — /cohort/:slug/week/:num/slides
+// Standalone full-screen presentation page (deliberately NOT Layout-wrapped;
+// the deck brings its own chrome — see src/lib/deck-render.ts). Access gating
+// mirrors the lesson page above (canAccessCohort + published-only), except
+// admins also see decks on draft lessons — decks are authored ahead of class,
+// and the slidesUrl returned by admin_upsert_deck/get_deck must render
+// without publishing first. Same pattern as get_deck in the MCP routes.
+cohortRoutes.get('/cohort/:slug/week/:num/slides', async (c) => {
+  const slug = c.req.param('slug')
+  const weekNum = parseInt(c.req.param('num'), 10)
+  const db = getDb(c.env.DB)
+  const user = c.get('user')
+
+  if (isNaN(weekNum)) {
+    return c.redirect(`/cohort/${slug}`)
+  }
+
+  const cohort = await db.select().from(cohorts).where(eq(cohorts.slug, slug)).get()
+
+  if (!cohort) {
+    return c.html(
+      <Layout title="Not Found" user={user}>
+        <div class="page-section" style="text-align: center; padding: 6rem 0;">
+          <h2>Cohort not found</h2>
+          <p><a href="/">← Back to homepage</a></p>
+        </div>
+      </Layout>,
+      404
+    )
+  }
+
+  // Access control
+  const hasAccess = await canAccessCohort(c.env.DB, user, cohort.id, cohort.isPublic)
+  if (!hasAccess) {
+    return c.html(<GatedMessage cohort={cohort} user={user} />, 403)
+  }
+
+  const lesson = await db
+    .select({ slidesJson: lessons.slidesJson })
+    .from(lessons)
+    .where(
+      and(
+        eq(lessons.cohortId, cohort.id),
+        eq(lessons.weekNumber, weekNum),
+        ...(isAdmin(user) ? [] : [eq(lessons.status, 'published')])
+      )
+    )
+    .get()
+
+  // 404 when there's no lesson, no stored deck, or the stored JSON doesn't
+  // validate — a bad write should never 500 a live presentation URL.
+  let deck = null
+  if (lesson?.slidesJson) {
+    try {
+      const validated = validateDeck(JSON.parse(lesson.slidesJson))
+      if (validated.ok) deck = validated.deck
+    } catch {
+      // Invalid JSON in slides_json — treat as missing.
+    }
+  }
+
+  if (!deck) {
+    return c.html(
+      <Layout title="Not Found" user={user}>
+        <div class="page-section" style="text-align: center; padding: 6rem 0;">
+          <h2>No slides for this week</h2>
+          <p><a href={`/cohort/${slug}/week/${weekNum}`}>← Back to Week {weekNum}</a></p>
+        </div>
+      </Layout>,
+      404
+    )
+  }
+
+  return c.html(renderDeckHtml(deck))
 })
 
 export default cohortRoutes

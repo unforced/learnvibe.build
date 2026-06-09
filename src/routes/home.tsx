@@ -81,15 +81,15 @@ home.get('/', async (c) => {
 
   return c.html(
     <Layout
-      title="Build your personal AI assistant"
-      description="Three weeks, in person in Boulder. Build your own personal agentic assistant — one that knows you, has hands in your world, and helps you live and create more effectively. No coding experience needed."
+      title="Become a builder"
+      description="Three weeks, in person in Boulder. Learn to work with AI as a creative partner and ship real things on the open internet. No coding experience needed."
       user={user}
       fullWidth
     >
       {/* HERO */}
       <section class="hero">
-        <h1 class="hero-title">Build your personal <span class="accent">AI assistant</span></h1>
-        <p class="hero-subtitle">Three weeks, in person in Boulder &mdash; build your own agentic assistant that knows you, has hands in your world, and helps you live and create more effectively. No coding experience needed.</p>
+        <h1 class="hero-title">Become a <span class="accent">builder</span>.</h1>
+        <p class="hero-subtitle">Three weeks, in person in Boulder &mdash; learn to work with AI as a creative partner and ship real things on the open internet. No coding experience needed.</p>
         <p style="margin-top: 1rem; color: var(--text-tertiary); font-style: italic;">A community of practice for AI. We learn and grow together.</p>
 
         <div style="margin-top: 1.5rem; display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.85rem; background: var(--surface); border: 1px solid var(--border); border-radius: 999px; font-family: var(--font-mono); font-size: 0.78rem; letter-spacing: 0.02em; color: var(--text-secondary);">
@@ -192,7 +192,7 @@ home.get('/', async (c) => {
         <h2>A practice, not a tools tour</h2>
         <p class="lead">AI is moving fast. The tools change every month. What doesn't change is the shape of working well with AI &mdash; and that's what we practice, together.</p>
         <p>Think of it like Taiji: you can spend weeks on the same standing, the same movement, letting it deepen. Our course is the same. We return to the core moves &mdash; conversation, context, connection &mdash; each week, and each time you come back to them they go deeper. By the end, you have not just a set of tricks but a relationship with these tools that travels with you wherever they go next.</p>
-        <p>The outcome is a personal assistant that knows you. The path is a community that learns together.</p>
+        <p>The outcome is becoming a builder &mdash; someone who can make real things with AI. The path is a community that learns together.</p>
       </section>
 
       <div class="hp-divider"><hr /></div>
@@ -272,39 +272,16 @@ home.get('/', async (c) => {
           <h3 style="font-family: var(--font-display); font-weight: 600; font-size: 1.15rem; letter-spacing: -0.01em; margin: 0 0 0.5rem;">ATLS 4519 &mdash; Learn Vibe Build</h3>
           <p style="margin: 0; color: var(--text-secondary); line-height: 1.6;">Aaron is teaching a semester-long version of this work at CU Boulder's ATLAS Institute in Fall 2026 &mdash; same lineage, longer arc. Distinct from the cohort but part of the same practice.</p>
         </div>
-      </section>
 
-      <div class="hp-divider"><hr /></div>
+        {/* Compact lineage — the standalone section folded in here (2026-06).
+            One line of provenance + one real quote beats a stats grid. */}
+        <p style="margin-top: 2rem; color: var(--text-secondary); line-height: 1.7;">
+          It started with a pilot &mdash; 13 builders in January 2026, real projects shipped to the internet. Spring grew it to ~30. Summer sharpens it to three weeks. Each run builds on what the last one taught us.
+        </p>
 
-      {/* PILOT + SPRING 2026 SOCIAL PROOF */}
-      <section class="hp-section hp-section-narrow">
-        <p class="section-label">The lineage</p>
-        <h2>It started with a pilot.</h2>
-        <p class="lead">The Pilot ran in January 2026 &mdash; 13 builders, 4 weeks, real projects deployed to the internet. Spring 2026 just wrapped &mdash; ~30 builders, six weeks through the full Six C's arc. Summer 2026 builds on what worked. Here's what folks from the pilot had to say.</p>
-
-        <div class="outcomes-grid">
-          <div class="outcome-stat">
-            <div class="outcome-number">13</div>
-            <div class="outcome-label">builders in the pilot</div>
-          </div>
-          <div class="outcome-stat">
-            <div class="outcome-number">~30</div>
-            <div class="outcome-label">in Spring 2026 (just wrapped)</div>
-          </div>
-          <div class="outcome-stat">
-            <div class="outcome-number">0</div>
-            <div class="outcome-label">coding experience required</div>
-          </div>
-        </div>
-
-        <div class="testimonial">
+        <div class="testimonial" style="margin-top: 1.25rem;">
           <blockquote>&ldquo;A challenging and mind-stretching opportunity to try out how you might want to interact with AI, our new &lsquo;cognitive appliance,&rsquo; with support from a super-knowledgeable teacher and a cohort of motivated students.&rdquo;</blockquote>
-          <p class="testimonial-author">&mdash; Cohort 0 participant</p>
-        </div>
-
-        <div class="testimonial" style="margin-top: 1rem;">
-          <blockquote>&ldquo;Seeing all the stuff that other folks were building!&rdquo;</blockquote>
-          <p class="testimonial-author">&mdash; Cohort 0 participant, on what stood out most</p>
+          <p class="testimonial-author">&mdash; Pilot cohort participant</p>
         </div>
       </section>
 
@@ -346,8 +323,8 @@ home.get('/', async (c) => {
 
         <div style="margin-top: 2.5rem; padding: 1.75rem; background: var(--white); border: 1px solid var(--border); border-radius: 10px;">
           <p class="section-label" style="margin-bottom: 0.5rem;">Coming Soon</p>
-          <h3 style="font-family: var(--font-display); font-weight: 600; font-size: 1.15rem; letter-spacing: -0.01em; margin: 0 0 0.75rem;">Advanced Agentic Engineering</h3>
-          <p style="margin: 0; color: var(--text-secondary); line-height: 1.7;">For those interested in growing their skills as a developer and finding employment as an AI engineer. We have a growing network of companies looking for talented engineers &mdash; for those who want it, there's a pipeline.</p>
+          <h3 style="font-family: var(--font-display); font-weight: 600; font-size: 1.15rem; letter-spacing: -0.01em; margin: 0 0 0.75rem;">The Augmented Knowledge Worker</h3>
+          <p style="margin: 0; color: var(--text-secondary); line-height: 1.7;">AI for people whose work is thinking. A five-week live course for researchers, consultants, writers, strategists, and designers &mdash; co-taught by Benjamin Life and Aaron as the next step after Learn Vibe Build. Thinking clearly with AI, the iterative research loop, a second brain your AI can query, building your own tools, and shipping work that looks like you. Details soon.</p>
         </div>
       </section>
 
@@ -435,7 +412,7 @@ home.get('/', async (c) => {
           </div>
           <div class="faq-item">
             <h3 class="faq-q">What will I build?</h3>
-            <p class="faq-a">That's up to you. Past students have built personal websites, workflow tools, creative platforms, business automations, and small apps for their friends. By the end, you'll have something real on the open internet at a URL you own &mdash; plus the foundation of an AI assistant that knows you.</p>
+            <p class="faq-a">That's up to you. Past students have built personal websites, workflow tools, creative platforms, business automations, and small apps for their friends. By the end, you'll have something real on the open internet at a URL you own &mdash; and a practice of building with AI that travels with you.</p>
           </div>
           <div class="faq-item">
             <h3 class="faq-q">When does the next cohort start?</h3>
@@ -455,7 +432,7 @@ home.get('/', async (c) => {
       {/* CTA */}
       <section class="cta-section">
         <div class="cta-content">
-          <h2>Ready to build an assistant that knows you?</h2>
+          <h2>Ready to become a builder?</h2>
           <p>Summer 2026 starts <strong>June 22</strong>. Three weeks. Six classes. In person at the Regen Hub. Apply now &mdash; or drop your email and we'll keep you posted on future cohorts.</p>
           <div style="margin: 1.5rem auto 0; display: flex; gap: 0.75rem; align-items: stretch; max-width: 540px; flex-wrap: wrap; justify-content: center;">
             <a href="/enroll" class="cta-btn" style="margin: 0; padding: 0.75rem 1.5rem; white-space: nowrap; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 0.4rem;">
