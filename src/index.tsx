@@ -1,7 +1,6 @@
 import { Hono } from 'hono'
-import { clerkMiddleware } from '@hono/clerk-auth'
 import type { AppContext } from './types'
-import { getUser, isClerkConfigured } from './lib/auth'
+import { getUser } from './lib/auth'
 import home from './routes/home'
 import pages from './routes/pages'
 import api from './routes/api'
@@ -25,20 +24,10 @@ import interest from './routes/interest'
 const app = new Hono<AppContext>()
 
 // ===== AUTH MIDDLEWARE =====
-// Parse Clerk session on every request (non-blocking — doesn't require auth)
+// Resolve the signed session cookie into a user on every request
+// (non-blocking — unauthenticated requests just get user=null). See
+// src/lib/session.ts + src/lib/auth.ts.
 app.use('*', async (c, next) => {
-  // Only run Clerk middleware if properly configured
-  if (isClerkConfigured(c)) {
-    try {
-      const middleware = clerkMiddleware()
-      await middleware(c, async () => {})
-    } catch (e) {
-      console.error('Clerk middleware error (non-fatal):', e)
-      // Continue without auth — better to show the page without user
-      // than to break entirely on a transient Clerk failure
-    }
-  }
-  // Set user variable for downstream routes
   const user = await getUser(c)
   c.set('user', user)
   await next()

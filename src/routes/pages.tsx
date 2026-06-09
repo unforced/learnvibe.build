@@ -2,8 +2,9 @@ import { Hono } from 'hono'
 import { eq } from 'drizzle-orm'
 import { Layout } from '../components/Layout'
 import { getDb } from '../db'
-import { applications, cohorts } from '../db/schema'
-import { formatCents, getApplicationAmount, getApplicationLabel } from '../lib/stripe'
+import { applications, cohorts, enrollments } from '../db/schema'
+import { formatCents, getApplicationAmount, getApplicationLabel, getTiersForCohort } from '../lib/stripe'
+import { getCohortCapacity, getCapacityLabel } from '../lib/access'
 import type { AppContext } from '../types'
 
 const pages = new Hono<AppContext>()
@@ -12,124 +13,149 @@ const pages = new Hono<AppContext>()
 pages.get('/curriculum', (c) => {
   const user = c.get('user')
 
-  const weeks = [
+  // Three movements, two classes each. Each movement carries the
+  // accumulated lineage from prior cohorts but reads as one arc.
+  const movements = [
     {
       num: 1,
-      title: 'Conversation',
-      tagline: 'Three conversations — with yourself, with AI, with each other',
-      description: 'We start here because everything else flows from how we engage. The first move is three conversations: with yourself (journaling alone), with AI (thinking together), and with each other (real humans, real feedback). Naming intention up front, inviting questions before answers, and producing a short artifact that maps what\'s actually alive in what you\'re trying to make.',
+      title: 'Learn',
+      tagline: 'Conversation, context, and connectors — AI as your learning partner',
+      classes: [
+        {
+          n: 1,
+          date: 'Mon · June 22',
+          title: 'Conversation & Context',
+          summary: 'The three relationships — with yourself, with AI, with each other. Naming intention. Asking questions before answers. Building the seed of your living context document.',
+        },
+        {
+          n: 2,
+          date: 'Wed · June 24',
+          title: 'Connectors & Memory with Parachute',
+          summary: 'AI with hands — connecting Claude to your tools and data. Setting up Parachute as your persistent knowledge graph that travels across conversations and across AIs.',
+        },
+      ],
+      description: 'We start where every good practice starts: by getting clear on the relationship. With yourself, with AI, with the people you\'re learning alongside. The first two classes build the foundation — context, conversation moves, and the connectors that give AI hands in your world. By the end of Week 1 you\'ve got a Claude that knows you, plus an early Parachute vault that travels with you across tools.',
       youll_learn: [
         'How to talk to AI as a creative partner, not a search engine',
-        'The three relationships — conversation with self, with AI, with each other',
-        'Naming intention, asking for questions before answers, inviting pushback',
-        'How to use your felt sense to guide what you make',
+        'The three relationships — with self, with AI, with each other',
+        'What context actually is, and how to maintain it across conversations',
+        'Connectors and MCPs — giving AI access to your real tools and data',
+        'Parachute as a persistent personal knowledge system (introduced this week, woven through the cohort)',
       ],
-      youll_build: 'A short written artifact (1–2 pages) mapping what\'s alive in you — what you\'re making, where you feel pulled, where you feel stuck. The starter that everything else builds on.',
-      tools: 'Claude (web or desktop)',
+      youll_build: 'A living context document that any AI can know you through, a Claude Project connected to the tools most alive for you, and the early shape of a Parachute vault.',
+      tools: 'Claude, Connectors / MCPs, Parachute',
     },
     {
       num: 2,
-      title: 'Context',
-      tagline: 'How AI starts to know you',
-      description: 'A first chat with AI is meeting a brilliant stranger. The shift this week is from one-shot conversations to *having* an AI that actually knows you. We work with the artifact you made in Week 1 — annotate it, update it with AI, then pair up and read each other\'s contexts back. Hearing your context reflected by another person is the fastest way to know whether it\'s actually doing its job.',
-      youll_learn: [
-        'What context actually is — tokens, the context window, and "is the juice worth the squeeze?"',
-        'The living document — a short written description of you, your work, and how you want to be supported',
-        'Where to keep it — Claude Profile Preferences, a Project\'s custom instructions, or a folder Cowork can read',
-        'Naming conventions in the wild — AGENTS.md, SOUL.md, CLAUDE.md — same idea, different names',
+      title: 'Vibe',
+      tagline: 'Prototype, design, experiment — taste as the practice',
+      classes: [
+        {
+          n: 3,
+          date: 'Mon · June 29',
+          title: 'Clarify with AI',
+          summary: 'Loop 1 — using conversation to clarify what you\'re actually trying to make. The one-pager as the seed that grows into everything else.',
+        },
+        {
+          n: 4,
+          date: 'Wed · July 1',
+          title: 'Design & Iterate',
+          summary: 'Loop 2 — Claude Design. From one-pager to interactive prototype. Iteration, taste, pushback with specificity. Reading what AI made back to yourself.',
+        },
       ],
-      youll_build: 'Your living document, wherever you choose to keep it. Use it for at least three real AI conversations and notice what shifts.',
-      tools: 'Claude.ai (Profile Preferences, Projects), Cowork (optional)',
+      description: 'Week 2 is about making real attempts. Not finished products — real attempts. We use the two-loop pattern: first clarify in conversation what you\'re trying to make, then hand that clarity to Claude Design and start building. The whole week is iteration practice. Pushing back with specificity. Watching for smooth defaults. Bringing your taste forward.',
+      youll_learn: [
+        'The two-loop pattern — clarify first, then build',
+        'Claude Design — prototyping at the speed of conversation',
+        'The art of pushback — specific, embodied, taste-forward',
+        'Watching for "smooth defaults" and bringing your unique voice forward',
+        'Sharing what you\'ve made and using the gap between intention and reception as fuel',
+      ],
+      youll_build: 'A working prototype of something useful to you — website, tool, brochure, app — built with AI as a creative partner, iterated to a point where you can show someone and have a real conversation about it.',
+      tools: 'Claude.ai, Claude Design, Parachute',
     },
     {
       num: 3,
-      title: 'Connectors',
-      tagline: 'AI with hands',
-      description: 'AI is powerful in conversation. When you connect it to your tools — calendar, notes, drive, whatever you use — it becomes transformative. The living document you started in Week 2 becomes the context that connectors refer to. This week is about giving AI access to your world so it can act in it, not just chat about it.',
-      youll_learn: [
-        'What MCPs (Model Context Protocol) are, why they matter, and how to think about them',
-        'Enabling built-in connectors — web search, Google Drive, Notion, and more',
-        'Safely giving AI access to external systems',
-        'Projects in Claude — persistent context for ongoing work',
+      title: 'Build',
+      tagline: 'From design to live on the open internet',
+      classes: [
+        {
+          n: 5,
+          date: 'Mon · July 6',
+          title: 'From Design to Live',
+          summary: 'Claude Code in the Claude desktop app. The four moves of prompting code. Taking your design to GitHub Pages — your site live on the open internet.',
+        },
+        {
+          n: 6,
+          date: 'Wed · July 8',
+          title: 'Engineering Principles + Demos',
+          summary: 'Engineering principles for builders. Supabase as the deeper-cut backend. Demos, reflection, what comes next.',
+        },
       ],
-      youll_build: 'A Claude Project connected to the tools and data most alive for you',
-      tools: 'Claude.ai, Connectors / MCPs',
-    },
-    {
-      num: 4,
-      title: 'Craft',
-      tagline: 'Making what you need',
-      description: 'Techne is the Greek word for craft — the knowledge of how to make things. This week, we use AI as a creative partner to make something you need. Could be a website, a habit tracker, a small tool. Code is optional — a deeper cut for those who want it, never required.',
+      description: 'Week 3 takes you the last mile — from prototype to a real site at a real URL. We don\'t use a terminal. Claude Code lives right inside the Claude desktop app, and we teach the four moves that make prompting code different from prompting chat. By the end you have something live on the open internet that you can keep growing, plus the engineering principles to grow it responsibly. We close with demos and a real send-off into the ongoing community.',
       youll_learn: [
-        'Claude as creative partner — collaborative making, iteration, and taste',
-        'Starting small: the minimum viable version of what you actually need',
-        'Working with artifacts and previewing as you build',
-        'For those who want the depth: a peek at writing and shipping real code',
+        'Claude Code in the Claude desktop app — no terminal required',
+        'The four moves of prompting code — plan-then-do, name files specifically, run-and-see loop, CLAUDE.md as memory',
+        'GitHub and GitHub Pages — your site live, driven from inside Claude',
+        'Engineering principles for non-engineers — when to be careful, when to bring in an expert',
+        'Supabase as the deeper-cut backend for sites that need auth and a database',
       ],
-      youll_build: 'A working prototype of something useful in your life',
-      tools: 'Claude.ai, Claude Code (optional)',
-    },
-    {
-      num: 5,
-      title: 'Coordination',
-      tagline: 'Weaving agents into one assistant',
-      description: 'You\'ve got the pieces — conversation, context, connectors, craft. This week, we compose them. Multiple agents, tools, and workflows come together into a single assistant that organizes your life and hides the complexity behind the scenes.',
-      youll_learn: [
-        'Multi-agent design — letting agents hand off and collaborate',
-        'Automations and scheduled workflows',
-        'Your personal assistant — setup, architecture, iteration',
-        'How to keep a system coherent as it grows',
-      ],
-      youll_build: 'The foundation of your own personal AI assistant — one that\'s starting to know you',
-      tools: 'Claude Code, agent frameworks, your full toolkit',
-    },
-    {
-      num: 6,
-      title: 'Community',
-      tagline: 'Demo, reflect, and keep going',
-      description: 'We gather to share what we\'ve made and what we\'ve noticed. We reflect on how the practice has changed how we think. And we step into what comes next — the ongoing community of practice that doesn\'t end when the cohort does.',
-      youll_learn: [
-        'How to keep the practice going after the cohort ends',
-        'The landscape: where AI is heading and how to stay oriented',
-        'The path into the Learn Vibe Build community and ongoing membership',
-      ],
-      youll_build: 'A demo of what you\'ve made + the relationships that go with you',
-      tools: 'Everything you\'ve learned so far',
+      youll_build: 'A real website at a real URL on the open internet — your Week 2 design, now live, hosted on infrastructure you understand enough to keep growing.',
+      tools: 'Claude desktop app (Code tab), GitHub, GitHub Pages, Supabase (deeper cut), Parachute',
     },
   ]
 
   return c.html(
     <Layout
-      title="Curriculum — The Six C's"
-      description="Six weeks of practice — Conversation, Context, Connectors, Craft, Coordination, Community. A community of practice for building with AI."
+      title="Curriculum — Learn, Vibe, Build"
+      description="Three weeks, three movements — Learn, Vibe, Build. Six classes total, in person in Boulder. A community of practice for building with AI."
       user={user}
     >
       <style dangerouslySetInnerHTML={{ __html: `@media (max-width: 600px) { .curriculum-detail-grid { grid-template-columns: 1fr !important; } }` }} />
       <div class="page-section" style="max-width: 800px; margin: 0 auto;">
         <a href="/" style="font-size: 0.85rem; color: var(--text-tertiary); text-decoration: none;">&larr; Home</a>
 
-        <p class="section-label" style="margin-top: 2rem;">The Six C's</p>
-        <h2>A practice, not a tools tour.</h2>
+        <p class="section-label" style="margin-top: 2rem;">The Curriculum</p>
+        <h2><span class="accent">Learn. Vibe. Build.</span></h2>
         <p class="lead">
-          Six movements of the same practice. We return to the same core moves each week, deepening as we go &mdash; spirals, not stairs. No coding experience needed. Code is available as a deeper cut for those who want it.
+          Three weeks. Three movements. Six classes total, two per movement. We start with conversation and context, move into design and prototyping, then take what you've made and ship it &mdash; live on the open internet, yours to keep growing.
+        </p>
+        <p style="margin-top: 1rem; color: var(--text-secondary); line-height: 1.6;">
+          Parachute &mdash; the personal knowledge system Aaron and Jon have been building &mdash; is woven through the cohort as a tool you can use to set up your own AI memory and interfaces. Not the focus, but a demonstration thread.
         </p>
 
         <div style="margin-top: 3rem;">
-          {weeks.map((week) => (
+          {movements.map((m) => (
             <div style="margin-bottom: 2.5rem; padding: 2rem; background: var(--white); border: 1px solid var(--border); border-radius: 12px;">
-              <div style="display: flex; align-items: baseline; gap: 1rem; margin-bottom: 0.75rem;">
-                <span style="font-family: var(--font-mono); font-size: 0.7rem; font-weight: 500; color: var(--accent); letter-spacing: 0.03em; text-transform: uppercase;">Week {week.num}</span>
-                <span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-tertiary);">{week.tools}</span>
+              <div style="display: flex; align-items: baseline; gap: 1rem; margin-bottom: 0.75rem; flex-wrap: wrap;">
+                <span style="font-family: var(--font-mono); font-size: 0.7rem; font-weight: 500; color: var(--accent); letter-spacing: 0.03em; text-transform: uppercase;">Week {m.num} &middot; Classes {m.classes[0].n}&ndash;{m.classes[1].n}</span>
+                <span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-tertiary);">{m.tools}</span>
               </div>
-              <h3 style="font-family: var(--font-display); font-weight: 600; font-size: 1.4rem; letter-spacing: -0.02em; margin-bottom: 0.25rem;">{week.title}</h3>
-              <p style="font-size: 0.95rem; color: var(--accent); font-weight: 500; margin-bottom: 1rem;">{week.tagline}</p>
-              <p style="color: var(--text-secondary); line-height: 1.7; margin-bottom: 1.25rem;">{week.description}</p>
+              <h3 style="font-family: var(--font-display); font-weight: 600; font-size: 1.6rem; letter-spacing: -0.02em; margin-bottom: 0.25rem;">{m.title}</h3>
+              <p style="font-size: 0.95rem; color: var(--accent); font-weight: 500; margin-bottom: 1rem;">{m.tagline}</p>
+              <p style="color: var(--text-secondary); line-height: 1.7; margin-bottom: 1.5rem;">{m.description}</p>
+
+              <div style="margin-bottom: 1.5rem;">
+                <h4 style="font-family: var(--font-mono); font-size: 0.7rem; font-weight: 500; color: var(--text-tertiary); letter-spacing: 0.03em; text-transform: uppercase; margin-bottom: 0.75rem;">The classes</h4>
+                <div style="display: flex; flex-direction: column; gap: 0.85rem;">
+                  {m.classes.map((cls) => (
+                    <div style="padding: 0.85rem 1.1rem; background: var(--surface); border-radius: 8px;">
+                      <div style="display: flex; gap: 0.85rem; align-items: baseline; flex-wrap: wrap;">
+                        <span style="font-family: var(--font-mono); font-size: 0.7rem; font-weight: 600; color: var(--accent); letter-spacing: 0.05em;">Class {cls.n}</span>
+                        <span style="font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-tertiary);">{cls.date}</span>
+                      </div>
+                      <p style="font-weight: 600; font-size: 0.95rem; margin: 0.35rem 0 0.25rem;">{cls.title}</p>
+                      <p style="font-size: 0.88rem; color: var(--text-secondary); line-height: 1.55; margin: 0;">{cls.summary}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
 
               <div class="curriculum-detail-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
                 <div>
                   <h4 style="font-family: var(--font-mono); font-size: 0.7rem; font-weight: 500; color: var(--text-tertiary); letter-spacing: 0.03em; text-transform: uppercase; margin-bottom: 0.75rem;">What you'll learn</h4>
                   <ul style="list-style: none; padding: 0; margin: 0;">
-                    {week.youll_learn.map((item) => (
+                    {m.youll_learn.map((item) => (
                       <li style="padding: 0.3rem 0 0.3rem 1.25rem; position: relative; font-size: 0.9rem; color: var(--text-secondary); line-height: 1.5;">
                         <span style="position: absolute; left: 0; color: var(--accent);">&rarr;</span>
                         {item}
@@ -139,7 +165,7 @@ pages.get('/curriculum', (c) => {
                 </div>
                 <div>
                   <h4 style="font-family: var(--font-mono); font-size: 0.7rem; font-weight: 500; color: var(--text-tertiary); letter-spacing: 0.03em; text-transform: uppercase; margin-bottom: 0.75rem;">What you'll build</h4>
-                  <p style="font-size: 0.9rem; color: var(--text-secondary); line-height: 1.5; padding: 0.75rem 1rem; background: var(--surface); border-radius: 6px;">{week.youll_build}</p>
+                  <p style="font-size: 0.9rem; color: var(--text-secondary); line-height: 1.5; padding: 0.75rem 1rem; background: var(--surface); border-radius: 6px;">{m.youll_build}</p>
                 </div>
               </div>
             </div>
@@ -147,15 +173,19 @@ pages.get('/curriculum', (c) => {
         </div>
 
         <div style="text-align: center; padding: 3rem 0;">
-          <a href="/interest" style="display: inline-flex; align-items: center; gap: 0.5rem; background: var(--accent); color: white; font-size: 1rem; font-weight: 500; padding: 0.875rem 2rem; border-radius: 8px; text-decoration: none;">
-            Join the interest list
+          <a href="/enroll" style="display: inline-flex; align-items: center; gap: 0.5rem; background: var(--accent); color: white; font-size: 1rem; font-weight: 500; padding: 0.875rem 2rem; border-radius: 8px; text-decoration: none;">
+            Apply for Summer 2026
             <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
           </a>
-          <p style="margin-top: 1rem; font-size: 0.85rem; color: var(--text-tertiary);">
-            Mondays 5:30&ndash;7:30pm MT &middot; 6 weeks &middot; $500 (sliding-scale) &middot; Boulder, CO &amp; Remote
+          <p style="margin-top: 1rem; font-size: 0.85rem; color: var(--text-tertiary); line-height: 1.7;">
+            Mondays &amp; Wednesdays 6&ndash;8pm MT &middot; Office hours Tuesdays 1&ndash;3pm MT &middot; June 22 &ndash; July 8, 2026<br />
+            <strong>In person only at <a href="https://regenhub.xyz" target="_blank" style="color: var(--accent);">Regen Hub</a>, Boulder</strong> &mdash; sessions recorded, no live remote &middot; capped at 20
           </p>
           <p style="margin-top: 0.5rem; font-size: 0.85rem; color: var(--text-tertiary);">
-            Sliding-scale and sponsored spots available &mdash; cost should never be a barrier.
+            Sliding scale $250 / $500 / $750 &middot; Spring 2026 alumni $125 &middot; scholarships available for demonstrated need or public-benefit / non-profit / student academic work &mdash; cost should never be a barrier.
+          </p>
+          <p style="margin-top: 0.5rem; font-size: 0.85rem; color: var(--text-tertiary);">
+            Includes discounted Regen Hub Cooperative membership + free co-working day passes during the cohort.
           </p>
         </div>
       </div>
@@ -163,15 +193,113 @@ pages.get('/curriculum', (c) => {
   )
 })
 
-pages.get('/apply', async (c) => {
+// ===== /connect — public guide to the Learn Vibe Build MCP connector =====
+// /mcp is the JSON-RPC endpoint (machine-readable). This is the human-readable
+// page that walks people through hooking it up to Claude.
+pages.get('/connect', (c) => {
+  const user = c.get('user')
+  return c.html(
+    <Layout
+      title="Connect Claude to Learn Vibe Build"
+      description="Add Learn Vibe Build as a Claude connector so your AI can read your lessons, transcripts, and projects."
+      user={user}
+    >
+      <div class="page-section" style="max-width: 720px; margin: 0 auto;">
+        <a href="/" style="font-size: 0.85rem; color: var(--text-tertiary); text-decoration: none;">&larr; Home</a>
+
+        <p class="section-label" style="margin-top: 2rem;">Connector setup</p>
+        <h2>Hook Claude up to Learn Vibe Build</h2>
+        <p class="lead">
+          The LVB connector lets your Claude read your lesson plans, transcript summaries, projects, and discussions &mdash; and submit artifacts back on your behalf. Once it's installed you can ask Claude things like <em>"what did we cover in Week 3?"</em> or <em>"interview me about my learning journey"</em> and it can pull from the actual course material instead of guessing.
+        </p>
+
+        <div style="margin-top: 2.5rem; padding: 1.5rem 1.75rem; background: var(--surface); border: 1px solid var(--border); border-radius: 10px;">
+          <h3 style="font-family: var(--font-display); font-size: 1.1rem; font-weight: 600; margin: 0 0 1rem;">Setup &mdash; in Claude</h3>
+          <ol style="margin: 0; padding-left: 1.25rem; line-height: 1.8; color: var(--text-secondary);">
+            <li>Open <strong>Claude.ai</strong> (web or desktop app)</li>
+            <li>Go to <strong>Settings &rarr; Connectors</strong></li>
+            <li>Click <strong>Add custom connector</strong></li>
+            <li>Paste this URL:
+              <pre style="background: var(--dark); color: #e0e0e0; padding: 0.75rem 1rem; border-radius: 6px; margin-top: 0.5rem; font-size: 0.9rem; overflow-x: auto; font-family: var(--font-mono);">https://learnvibe.build/mcp</pre>
+            </li>
+            <li>Name it whatever you want (<em>LVB</em>, <em>Learn Vibe Build</em>, <em>class</em> &mdash; your call)</li>
+            <li>Click <strong>Connect</strong>. You'll get sent through an OAuth flow &mdash; sign in with the same account you use for LVB, click <strong>Approve</strong>, and you'll land back in Claude with a green check.</li>
+          </ol>
+        </div>
+
+        <h3 style="margin-top: 2.5rem; font-family: var(--font-display); font-size: 1.1rem; font-weight: 600;">Try it</h3>
+        <p style="color: var(--text-secondary); line-height: 1.7;">Open a new Claude chat and paste:</p>
+        <pre style="background: var(--dark); color: #e0e0e0; padding: 1rem 1.25rem; border-radius: 8px; margin-top: 0.5rem; font-size: 0.9rem; line-height: 1.6; white-space: pre-wrap; word-wrap: break-word;">
+{`List the cohorts on Learn Vibe Build, then pull the lesson summaries for the one I'm enrolled in.`}
+        </pre>
+        <p style="margin-top: 0.85rem; color: var(--text-secondary); line-height: 1.7;">
+          Claude will ask permission to call the LVB tool. Approve once and watch it read.
+        </p>
+
+        <h3 style="margin-top: 2.5rem; font-family: var(--font-display); font-size: 1.1rem; font-weight: 600;">What it can do</h3>
+        <ul style="color: var(--text-secondary); line-height: 1.8; padding-left: 1.25rem;">
+          <li>List and read lessons, including transcript summaries</li>
+          <li>Pull full transcripts when you want verbatim quotes</li>
+          <li>List, submit, and update your project artifacts</li>
+          <li>Read and post in cohort discussions</li>
+          <li>Update your profile</li>
+          <li>(Admins) Author and edit lesson content directly from Claude</li>
+        </ul>
+
+        <h3 style="margin-top: 2.5rem; font-family: var(--font-display); font-size: 1.1rem; font-weight: 600;">A signature prompt to come back to</h3>
+        <p style="color: var(--text-secondary); line-height: 1.7;">
+          Designed to be re-run periodically &mdash; once at the end of the cohort, again in 4 weeks, again in 8:
+        </p>
+        <pre style="background: var(--dark); color: #e0e0e0; padding: 1rem 1.25rem; border-radius: 8px; margin-top: 0.5rem; font-size: 0.9rem; line-height: 1.6; white-space: pre-wrap; word-wrap: break-word;">
+{`I just finished Learn Vibe Build. Use the Learn Vibe Build connector to
+pull the lesson plans and transcript summaries for the cohort I'm enrolled
+in.
+
+Then interview me. Ask me 5-7 questions about where I'm at — what I built,
+what's stuck, what's alive, where I'm curious, where I'm resistant. Push
+back where I'm vague.
+
+Then suggest 3 specific things to grow into over the next month, grounded
+in what the lessons actually covered, and a simple way to check in with
+myself in 4 weeks.`}
+        </pre>
+
+        {user && (
+          <p style="margin-top: 2.5rem; padding: 1rem 1.25rem; background: var(--surface); border-radius: 8px; font-size: 0.9rem; color: var(--text-secondary);">
+            Want an API key for CLI / scripted use instead of OAuth? <a href="/settings" style="color: var(--accent);">Generate one in your settings &rarr;</a>
+          </p>
+        )}
+
+        <p style="margin-top: 2.5rem; font-size: 0.85rem;">
+          <a href="/" style="color: var(--text-tertiary);">&larr; Back to homepage</a>
+        </p>
+      </div>
+    </Layout>
+  )
+})
+
+// ===== LEGACY REDIRECTS =====
+// /apply → /enroll. Renamed when direct signup replaced the apply-review-
+// approve flow (sliding-scale + alumni land at Stripe immediately; only
+// scholarship still goes through review). Old links from closing emails
+// and external bookmarks resolve cleanly.
+pages.get('/apply', (c) => {
+  const qs = c.req.url.split('?')[1]
+  return c.redirect(`/enroll${qs ? '?' + qs : ''}`, 301)
+})
+pages.get('/apply/success', (c) => c.redirect('/enroll/success', 301))
+pages.get('/apply/status', (c) => c.redirect('/dashboard', 301))
+pages.post('/apply/status', (c) => c.redirect('/dashboard', 303))
+
+pages.get('/enroll', async (c) => {
   const error = c.req.query('error')
   const db = getDb(c.env.DB)
   const user = c.get('user')
 
   // Check whether any cohort is currently `enrolling` — if not, render a
   // graceful "applications aren't open" state pointing at the interest
-  // list instead of the form. This way the route still serves a useful
-  // page when Cohort 1 closes and Cohort 2 isn't ready to take apps yet.
+  // list instead of the form. Cohorts cycle: Spring 2026 wrapped, Summer
+  // 2026 is currently enrolling, future cohorts will toggle through here.
   const enrollingCohort = await db.select().from(cohorts).where(eq(cohorts.status, 'enrolling')).get()
 
   if (!enrollingCohort) {
@@ -182,10 +310,10 @@ pages.get('/apply', async (c) => {
         user={c.get('user')}
       >
         <div class="page-section" style="max-width: 640px; margin: 0 auto;">
-          <p class="section-label">Apply</p>
-          <h2>Applications aren't open right now</h2>
+          <p class="section-label">Enroll</p>
+          <h2>Enrollment isn't open right now</h2>
           <p class="lead">
-            Cohort 1 is finishing up, and Cohort 2 dates aren't set yet. Drop your email on the interest list and we'll be in touch as the next cohort takes shape.
+            We're between cohorts at the moment. Drop your email on the interest list and we'll be in touch as the next one takes shape.
           </p>
           <div style="margin-top: 1.5rem; display: flex; gap: 1rem; flex-wrap: wrap; align-items: center;">
             <a href="/interest" style="display: inline-flex; align-items: center; gap: 0.4rem; background: var(--accent); color: white; padding: 0.75rem 1.5rem; border-radius: 6px; text-decoration: none; font-weight: 500;">
@@ -193,9 +321,6 @@ pages.get('/apply', async (c) => {
             </a>
             <a href="/" style="color: var(--text-secondary); text-decoration: none; font-size: 0.95rem;">← Back to homepage</a>
           </div>
-          <p style="margin-top: 2rem; font-size: 0.9rem; color: var(--text-secondary); padding-top: 1.5rem; border-top: 1px solid var(--border);">
-            Already applied? <a href="/apply/status" style="color: var(--accent);">Check your status →</a>
-          </p>
         </div>
       </Layout>
     )
@@ -205,55 +330,103 @@ pages.get('/apply', async (c) => {
   // applications.user_id from the start. Closes the loop on the
   // "approved-but-no-account" / "applied with different email than they
   // signed up with" diagnostic states. Legacy applications keep working
-  // through /apply/status (which queries by email, not user_id).
+  // and their status surfaces on the dashboard once signed in.
   if (!user) {
     return c.html(
       <Layout
         title="Apply — create your account first"
-        description="Applying to Learn Vibe Build starts with creating your account."
+        description={`Apply for Learn Vibe Build ${enrollingCohort.title} — 3 weeks in person in Boulder, June 22–July 8, 2026. Sliding scale $250 / $500 / $750.`}
         user={null}
       >
         <div class="page-section" style="max-width: 640px; margin: 0 auto;">
-          <p class="section-label">Apply</p>
-          <h2>One step before you apply</h2>
-          <p class="lead">
-            Applying starts with creating a Learn Vibe Build account &mdash; that way your application is linked to you from the moment you submit, and approval lands you in the cohort with no extra steps.
+          <p class="section-label">Enroll</p>
+          <h2>{enrollingCohort.title}</h2>
+
+          {/* Summary of what they're signing up for — so the spec survives
+              the account-creation gate. Without this, visitors lose all
+              cohort context between the homepage CTA and the form. */}
+          <div style="margin-top: 1.5rem; padding: 1.25rem 1.5rem; background: var(--surface); border: 1px solid var(--border); border-radius: 10px;">
+            <p style="margin: 0; color: var(--text-secondary); line-height: 1.7; font-size: 0.95rem;">
+              <strong>June 22 &ndash; July 8, 2026</strong> &middot; 3 weeks, in person at <a href="https://regenhub.xyz" target="_blank" style="color: var(--accent);">Regen Hub</a> in Boulder<br />
+              Mondays &amp; Wednesdays 6&ndash;8pm MT &middot; office hours Tuesdays 1&ndash;3pm MT<br />
+              Capped at 20 &middot; sliding scale $250 / $500 / $750 &middot; scholarships available
+            </p>
+            <p style="margin: 0.85rem 0 0; color: var(--text-tertiary); font-size: 0.85rem; line-height: 1.6;">
+              Calls recorded, but no live remote &mdash; this one's about being in the room together. Includes discounted Regen Hub Cooperative membership + free co-working day passes during the cohort.
+            </p>
+          </div>
+
+          <h3 style="font-family: var(--font-display); font-weight: 600; font-size: 1.1rem; margin: 2rem 0 0.5rem;">One step before you sign up</h3>
+          <p class="lead" style="margin-top: 0;">
+            Enrolling starts with creating a Learn Vibe Build account &mdash; that way your spot is linked to you from the moment you sign up, and you land in the cohort immediately after payment with no extra steps.
           </p>
-          <div style="margin-top: 1.5rem; display: flex; gap: 1rem; flex-wrap: wrap; align-items: center;">
-            <a href="/sign-up?redirect_url=/apply" style="display: inline-flex; align-items: center; gap: 0.4rem; background: var(--accent); color: white; padding: 0.75rem 1.5rem; border-radius: 6px; text-decoration: none; font-weight: 500;">
+          <div style="margin-top: 1.25rem; display: flex; gap: 1rem; flex-wrap: wrap; align-items: center;">
+            <a href="/sign-up?redirect_url=/enroll" style="display: inline-flex; align-items: center; gap: 0.4rem; background: var(--accent); color: white; padding: 0.75rem 1.5rem; border-radius: 6px; text-decoration: none; font-weight: 500;">
               Create account &rarr;
             </a>
-            <a href="/sign-in?redirect_url=/apply" style="color: var(--text-secondary); text-decoration: none; font-size: 0.95rem;">Already have one? Sign in &rarr;</a>
+            <a href="/sign-in?redirect_url=/enroll" style="color: var(--text-secondary); text-decoration: none; font-size: 0.95rem;">Already have one? Sign in &rarr;</a>
           </div>
-          <p style="margin-top: 2rem; font-size: 0.9rem; color: var(--text-secondary); padding-top: 1.5rem; border-top: 1px solid var(--border);">
-            Applied before this change? <a href="/apply/status" style="color: var(--accent);">Check your status &rarr;</a>
-          </p>
         </div>
       </Layout>
     )
   }
 
+  // Tiers + alumni detection — drives the pricing UI below. Alumni rate
+  // is only shown when we can verify the applicant has a prior enrollment;
+  // the api.ts POST handler enforces the same rule server-side.
+  const tiers = getTiersForCohort(enrollingCohort.slug)
+  const userEnrollments = await db.select({ cohortId: enrollments.cohortId })
+    .from(enrollments)
+    .where(eq(enrollments.userId, user.id))
+    .all()
+  const isAlumni = userEnrollments.some(e => e.cohortId !== enrollingCohort.id)
+
+  // Capacity check — if the cohort is full to direct-signup but a
+  // scholarship slot might still be available, we still render the form
+  // with scholarship-only options. Otherwise full = closed-state.
+  const capacity = await getCohortCapacity(c.env.DB, enrollingCohort.slug)
+  const capacityLabel = getCapacityLabel(capacity)
+
   const errorMessages: Record<string, string> = {
     missing_fields: 'Please fill out all required fields.',
     invalid_email: 'Please enter a valid email address.',
-    invalid_amount: 'Please enter a contribution between $0 and $500.',
+    invalid_amount: 'That contribution amount or tier isn\'t available — please pick from the options.',
     too_long: 'One or more fields are too long. Please shorten and try again.',
     server_error: 'Something went wrong. Please try again.',
     already_applied: 'You\'ve already submitted an application — see status below.',
+    cohort_full: 'The cohort just filled up while you were applying. You can still apply for a scholarship slot, or join the interest list for the next cohort.',
   }
+
+  // Tier descriptors for the radio UI. Order matters: sliding scale low →
+  // high, then alumni (if applicable), then scholarship at the bottom
+  // (different shape: requires extra info).
+  const slidingTiers = tiers.filter(t => t.tier.startsWith('sliding_'))
+  const scholarshipTier = tiers.find(t => t.tier === 'scholarship')
+  const alumniTier = tiers.find(t => t.tier === 'alumni')
 
   return c.html(
     <Layout
       title="Apply"
-      description="Apply for Learn Vibe Build — 6 weeks of building with AI as your creative partner. Cohort 1 is in flight; Cohort 2 is forming."
+      description="Apply for Learn Vibe Build Summer 2026 Cohort — 3 weeks in person in Boulder, June 22–July 8. Sliding scale $250 / $500 / $750."
       user={user}
     >
       <div class="page-section">
-        <p class="section-label">Apply</p>
-        <h2>Apply for the next cohort</h2>
+        <p class="section-label">Enroll</p>
+        <h2>Sign up for the {enrollingCohort.title}</h2>
         <p class="lead">
-          6 weeks of building with AI as your creative partner. Mondays 5:30&ndash;7:30pm MT, in Boulder, CO &amp; remote. $500 with a sliding-scale option below &mdash; sponsored spots available too. Cohort 1 is in flight now; Cohort 2 dates land soon. We&rsquo;ll be in touch.
+          Three weeks of building with AI as a creative partner. Mondays &amp; Wednesdays 6&ndash;8pm MT, office hours Tuesdays 1&ndash;3pm MT. <strong>June 22 &ndash; July 8, 2026 &middot; in person at <a href="https://regenhub.xyz" target="_blank" style="color: var(--accent);">Regen Hub</a> in Boulder.</strong> Capped at 20. Sliding scale $250 / $500 / $750 &mdash; pick what fits your current level of abundance. Scholarships available for folks who need them.
         </p>
+        <p style="font-size: 0.95rem; color: var(--text-secondary); margin-top: 0.85rem;">
+          Membership at the Regen Hub Cooperative is included &mdash; discounted rates and free co-working day passes alongside the cohort.
+        </p>
+
+        {capacityLabel && (
+          <div style={`margin-top: 1rem; padding: 0.85rem 1.1rem; background: ${capacity.isFull ? 'var(--surface)' : 'rgba(232, 97, 42, 0.08)'}; border: 1px solid ${capacity.isFull ? 'var(--border)' : 'var(--accent)'}; border-radius: 8px; font-size: 0.95rem; font-weight: 500; color: ${capacity.isFull ? 'var(--text-secondary)' : 'var(--accent)'};`}>
+            {capacity.isFull
+              ? <>The cohort is full. Scholarship applications are still considered &mdash; or join the <a href="/interest" style="color: var(--accent);">interest list</a> for the next cohort.</>
+              : <>⚡ {capacityLabel} &mdash; with a hard cap of 20, sign up soon to claim your spot.</>}
+          </div>
+        )}
 
         {error && errorMessages[error] && (
           <div class="form-error">
@@ -270,6 +443,9 @@ pages.get('/apply', async (c) => {
             <span style="font-family: var(--font-mono); font-size: 0.7rem; text-transform: uppercase; color: var(--text-tertiary); letter-spacing: 0.05em; margin-right: 0.5rem;">Applying as</span>
             <strong>{user.name || user.email}</strong>
             {user.name && <span style="color: var(--text-tertiary); margin-left: 0.4rem; font-family: var(--font-mono); font-size: 0.85rem;">&lt;{user.email}&gt;</span>}
+            {isAlumni && (
+              <span style="display: inline-block; margin-left: 0.6rem; font-size: 0.75rem; padding: 0.15rem 0.5rem; background: var(--accent); color: white; border-radius: 999px; font-weight: 600;">Alumni</span>
+            )}
           </span>
           <a href="/sign-out" style="font-size: 0.8rem; color: var(--text-tertiary); text-decoration: none;">Switch account</a>
         </div>
@@ -304,50 +480,113 @@ pages.get('/apply', async (c) => {
 
           <div class="form-group">
             <label for="referral_source">How did you hear about Learn Vibe Build?</label>
-            <input type="text" id="referral_source" name="referral_source" required />
+            <input type="text" id="referral_source" name="referral_source" required placeholder="An event, a search, a friend…" />
+            <p style="margin-top: 0.4rem; font-size: 0.85rem; color: var(--text-tertiary); line-height: 1.5;">
+              If a person referred you, name them here &mdash; they'll earn a $50 Regen Hub credit when you enroll.
+            </p>
           </div>
 
           <div class="form-group" style="margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--border);">
             <p style="font-weight: 600; font-size: 1rem; margin-bottom: 0.5rem;">Financial</p>
             <p style="color: var(--text-secondary); font-size: 0.95rem; line-height: 1.5; margin-bottom: 1rem;">
-              The cohort is <strong>$500</strong>. We'd rather have you in the room at a price that works for you than not at all &mdash; so if something lower feels right, tell us what and we'll honor it.
+              Pick what matches your current level of abundance. Cost should never be a barrier &mdash; if none of these work, apply for a scholarship below.
             </p>
-            <div style="display: flex; flex-direction: column; gap: 0.5rem;">
-              <label style="display: flex; gap: 0.5rem; align-items: center; padding: 0.6rem 0.85rem; border: 1px solid var(--border); border-radius: 6px; cursor: pointer;">
-                <input type="radio" name="contribution" value="full" required onchange="document.getElementById('pwyc-box').style.display='none'" checked />
-                <span>Yes, $500 works.</span>
-              </label>
-              <label style="display: flex; gap: 0.5rem; align-items: center; padding: 0.6rem 0.85rem; border: 1px solid var(--border); border-radius: 6px; cursor: pointer;">
-                <input type="radio" name="contribution" value="pwyc" onchange="document.getElementById('pwyc-box').style.display='block'" />
-                <span>I'd like to contribute a different amount.</span>
-              </label>
+            <div style="display: flex; flex-direction: column; gap: 0.6rem;">
+              {slidingTiers.map(t => {
+                const subtitle =
+                  t.tier === 'sliding_low' ? 'For folks where this feels like a stretch.' :
+                  t.tier === 'sliding_mid' ? 'Suggested rate.' :
+                  t.tier === 'sliding_high' ? 'Helps subsidize sliding-scale and scholarship spots.' :
+                  ''
+                return (
+                  <label style="display: flex; gap: 0.6rem; align-items: flex-start; padding: 0.75rem 0.95rem; border: 1px solid var(--border); border-radius: 6px; cursor: pointer;">
+                    <input type="radio" name="pricing_tier" value={t.tier} required onchange="lvbHideScholarship()" style="margin-top: 0.2rem;" />
+                    <span>
+                      <strong>{formatCents(t.amountCents)}</strong>
+                      {subtitle && <span style="display: block; color: var(--text-secondary); font-size: 0.85rem; font-weight: 400;">{subtitle}</span>}
+                    </span>
+                  </label>
+                )
+              })}
+              {isAlumni && alumniTier && (
+                <label style="display: flex; gap: 0.6rem; align-items: flex-start; padding: 0.75rem 0.95rem; border: 1px solid var(--accent); border-radius: 6px; cursor: pointer; background: rgba(232, 97, 42, 0.04);">
+                  <input type="radio" name="pricing_tier" value="alumni" onchange="lvbHideScholarship()" style="margin-top: 0.2rem;" />
+                  <span>
+                    <strong>{formatCents(alumniTier.amountCents)} &mdash; Alumni rate</strong>
+                    <span style="display: block; color: var(--text-secondary); font-size: 0.85rem; font-weight: 400;">For Learn Vibe Build alumni who want to keep diving deeper.</span>
+                  </span>
+                </label>
+              )}
+              {scholarshipTier && (
+                <label style="display: flex; gap: 0.6rem; align-items: flex-start; padding: 0.75rem 0.95rem; border: 1px solid var(--border); border-radius: 6px; cursor: pointer;">
+                  <input type="radio" name="pricing_tier" value="scholarship" onchange="lvbShowScholarship()" style="margin-top: 0.2rem;" />
+                  <span>
+                    <strong>Apply for a scholarship</strong>
+                    <span style="display: block; color: var(--text-secondary); font-size: 0.85rem; font-weight: 400;">Limited slots, for demonstrated need or public-benefit / non-profit / student academic work.</span>
+                  </span>
+                </label>
+              )}
             </div>
-            <div id="pwyc-box" style="display: none; margin-top: 1rem; padding: 1rem 1.25rem; background: var(--surface); border-radius: 8px;">
-              <label for="requested_amount" style="display: block; font-size: 0.9rem; font-weight: 500; margin-bottom: 0.35rem;">What feels right?</label>
-              <div style="display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.85rem;">
-                <span style="font-size: 1.05rem; color: var(--text-secondary);">$</span>
-                <input type="number" id="requested_amount" name="requested_amount" min="0" max="500" step="1" placeholder="0" style="width: 8rem; font-size: 1rem;" />
+            {scholarshipTier && (
+              <div id="scholarship-box" style="display: none; margin-top: 1rem; padding: 1.25rem 1.5rem; background: var(--surface); border: 1px solid var(--accent); border-radius: 8px;">
+                <label for="scholarship_request" style="display: block; font-size: 0.95rem; font-weight: 600; margin-bottom: 0.35rem;">
+                  Tell us about your situation
+                </label>
+                <p style="color: var(--text-secondary); font-size: 0.85rem; margin: 0 0 0.6rem; line-height: 1.5;">
+                  We're prioritizing folks with demonstrated need, public-benefit / non-profit work, or student academic context. A paragraph or two is plenty &mdash; what's the work you're doing, what makes this the right moment, and why a scholarship would help.
+                </p>
+                <textarea
+                  id="scholarship_request"
+                  name="scholarship_request"
+                  rows={5}
+                  maxlength={3000}
+                  placeholder="Whatever feels true."
+                  style="width: 100%;"
+                ></textarea>
               </div>
-              <label for="requested_reason" style="display: block; font-size: 0.9rem; font-weight: 500; margin-bottom: 0.35rem;">Tell us a little about your reasoning <span style="color: var(--text-tertiary); font-weight: 400;">(optional)</span></label>
-              <textarea id="requested_reason" name="requested_reason" rows={3} placeholder="Whatever feels true — your situation, what this contribution means to you, anything you want us to know."></textarea>
-            </div>
+            )}
           </div>
 
-          <button type="submit" class="apply-btn">Submit Application</button>
+          <button type="submit" class="apply-btn">Continue &rarr;</button>
         </form>
+
+        {/* Scholarship reveal — show the textarea and make it natively
+            required when scholarship is selected, so the browser blocks an
+            empty submit (and focuses the field) instead of the server
+            bouncing the applicant back to a confusing reload. */}
+        <script dangerouslySetInnerHTML={{ __html: `
+          function lvbShowScholarship() {
+            var box = document.getElementById('scholarship-box');
+            var ta = document.getElementById('scholarship_request');
+            if (box) box.style.display = 'block';
+            if (ta) { ta.required = true; ta.focus(); }
+          }
+          function lvbHideScholarship() {
+            var box = document.getElementById('scholarship-box');
+            var ta = document.getElementById('scholarship_request');
+            if (box) box.style.display = 'none';
+            if (ta) ta.required = false;
+          }
+        ` }} />
       </div>
     </Layout>
   )
 })
 
-pages.get('/apply/success', (c) => {
+pages.get('/enroll/success', (c) => {
   const user = c.get('user')
+  // Reaches here only on the scholarship path now — sliding-scale and
+  // alumni land at /payment/checkout immediately after form submit (and
+  // from there at /payment/success once they pay).
   return c.html(
     <Layout title="Application Received" user={user}>
       <div class="page-section success-message" style="max-width: 600px; margin: 0 auto;">
-        <h2>Application received</h2>
+        <h2>Scholarship application received</h2>
         <p class="lead">
-          Thank you for applying. We'll review your application and get back to you soon — typically within a few days.
+          Thank you for sharing your context with us. We review scholarship applications personally &mdash; typically within a few days &mdash; and we'll be in touch with a decision.
+        </p>
+        <p style="margin-top: 1rem; color: var(--text-secondary); line-height: 1.6;">
+          Scholarship slots are limited, so we can't promise a yes, but we read every application carefully. Whatever the outcome, we appreciate you applying.
         </p>
 
         <p style="margin-top: 1.5rem; color: var(--text-secondary);">
@@ -361,130 +600,13 @@ pages.get('/apply/success', (c) => {
   )
 })
 
-// ===== APPLICATION STATUS CHECK =====
-// Applicants enter their email to check application status and get payment link
-pages.get('/apply/status', (c) => {
-  return c.html(
-    <Layout title="Check Application Status" user={c.get('user')}>
-      <div class="page-section" style="max-width: 500px; margin: 0 auto;">
-        <p class="section-label">Application Status</p>
-        <h2>Check Your Status</h2>
-        <p class="lead" style="margin-top: 0.5rem;">
-          Enter the email you applied with to check your application status.
-        </p>
-
-        <form method="post" action="/apply/status" class="apply-form" style="margin-top: 2rem;">
-          <div class="form-group">
-            <label for="email">Email address</label>
-            <input type="email" id="email" name="email" required autocomplete="email" placeholder="you@example.com" />
-          </div>
-          <button type="submit" class="apply-btn">Check Status</button>
-        </form>
-      </div>
-    </Layout>
-  )
-})
-
-pages.post('/apply/status', async (c) => {
-  const user = c.get('user')
-  const body = await c.req.parseBody()
-  const email = String(body.email || '').trim().toLowerCase()
-
-  if (!email) {
-    return c.redirect('/apply/status')
-  }
-
-  const db = getDb(c.env.DB)
-  const app = await db.select().from(applications)
-    .where(eq(applications.email, email))
-    .get()
-
-  if (!app) {
-    return c.html(
-      <Layout title="Application Status" user={user} clerkPubKey={c.env.CLERK_PUBLISHABLE_KEY}>
-        <div class="page-section" style="max-width: 500px; margin: 0 auto; text-align: center; padding: 4rem 0;">
-          <h2>No Application Found</h2>
-          <p style="margin-top: 1rem; color: var(--text-secondary);">
-            We couldn't find an application for <strong>{email}</strong>.
-          </p>
-          <p style="margin-top: 1.5rem;">
-            <a href="/interest" style="color: var(--accent); font-weight: 500;">Join the interest list →</a>
-          </p>
-          <p style="margin-top: 1rem;">
-            <a href="/apply/status" style="color: var(--text-tertiary);">← Try another email</a>
-          </p>
-        </div>
-      </Layout>
-    )
-  }
-
-  const amountCents = getApplicationAmount(app)
-
-  return c.html(
-    <Layout title="Application Status" user={user} clerkPubKey={c.env.CLERK_PUBLISHABLE_KEY}>
-      <div class="page-section" style="max-width: 600px; margin: 0 auto;">
-        <p class="section-label">Application Status</p>
-        <h2>Hi {app.name.split(' ')[0]}</h2>
-
-        <div style="margin-top: 2rem; padding: 1.5rem; border-radius: 10px; background: var(--surface);">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-            <span style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--text-tertiary);">
-              Applied {new Date(app.createdAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
-            </span>
-            <span class={`badge badge-${app.status === 'approved' ? 'active' : app.status === 'enrolled' ? 'active' : app.status === 'rejected' ? 'completed' : 'pending'}`} style="font-size: 0.85rem;">
-              {app.status === 'enrolled' ? 'enrolled' : app.status}
-            </span>
-          </div>
-
-          {app.status === 'pending' && (
-            <div>
-              <p style="color: var(--text-secondary); line-height: 1.6;">
-                Your application is under review. We'll be in touch soon — typically within a few days.
-              </p>
-            </div>
-          )}
-
-          {app.status === 'approved' && (
-            <div>
-              <p style="color: var(--text-secondary); line-height: 1.6; margin-bottom: 1.5rem;">
-                Great news — your application has been approved!
-                {amountCents > 0
-                  ? ` Complete your payment of ${formatCents(amountCents)} (${getApplicationLabel(app)}) to secure your spot.`
-                  : ` Your spot has been sponsored — create your account to get started.`}
-              </p>
-              <a href={`/payment/checkout/${app.id}${app.paymentToken ? `?t=${app.paymentToken}` : ''}`} style="display: inline-block; background: var(--accent); color: white; padding: 0.85rem 2rem; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 1.05rem;">
-                {amountCents > 0 ? `Pay ${formatCents(amountCents)} & Enroll →` : 'Complete Enrollment →'}
-              </a>
-            </div>
-          )}
-
-          {app.status === 'enrolled' && (
-            <div>
-              <p style="color: var(--text-secondary); line-height: 1.6; margin-bottom: 1.5rem;">
-                You're enrolled! Create your account (or sign in) to access your cohort content.
-              </p>
-              <a href="/sign-in" style="display: inline-block; background: var(--accent); color: white; padding: 0.85rem 2rem; border-radius: 8px; text-decoration: none; font-weight: 600;">
-                Sign In →
-              </a>
-            </div>
-          )}
-
-          {app.status === 'rejected' && (
-            <div>
-              <p style="color: var(--text-secondary); line-height: 1.6;">
-                Thank you for your interest. Unfortunately, we weren't able to offer you a spot in this cohort.
-                Feel free to apply again for a future cohort.
-              </p>
-            </div>
-          )}
-        </div>
-
-        <p style="margin-top: 2rem; text-align: center;">
-          <a href="/" style="color: var(--text-tertiary);">← Back to Home</a>
-        </p>
-      </div>
-    </Layout>
-  )
-})
+// ===== APPLICATION STATUS =====
+// The old email-entry "check your status" flow is gone — everyone who
+// enrolls now has an account, so status lives on the dashboard (which
+// shows pending/approved application states + enrollments and redirects
+// signed-out visitors to sign-in). /enroll/status is kept only as a
+// redirect so legacy links (old emails, bookmarks) resolve cleanly.
+pages.get('/enroll/status', (c) => c.redirect('/dashboard', 301))
+pages.post('/enroll/status', (c) => c.redirect('/dashboard', 303))
 
 export default pages

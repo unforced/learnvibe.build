@@ -194,8 +194,8 @@ const ArtifactForm = ({
 const cohortRoutes = new Hono<AppContext>()
 
 // Gated content message component
-const GatedMessage = ({ cohort, user, clerkPubKey }: { cohort: { title: string; slug: string }; user: any; clerkPubKey?: string }) => (
-  <Layout title={cohort.title} user={user} clerkPubKey={clerkPubKey}>
+const GatedMessage = ({ cohort, user }: { cohort: { title: string; slug: string }; user: any }) => (
+  <Layout title={cohort.title} user={user}>
     <div class="page-section" style="max-width: 640px; margin: 0 auto; padding: 4rem 0;">
       <p class="section-label" style="text-align: center;">Members Only</p>
       <h2 style="text-align: center;">{cohort.title}</h2>
@@ -215,8 +215,8 @@ const GatedMessage = ({ cohort, user, clerkPubKey }: { cohort: { title: string; 
             <a href="/sign-up" style="display: inline-block; border: 1px solid var(--accent); color: var(--accent); padding: 0.75rem 1.5rem; border-radius: 6px; text-decoration: none; font-weight: 500;">
               Create Account
             </a>
-            <a href="/apply" style="display: inline-block; border: 1px solid var(--border); padding: 0.75rem 1.5rem; border-radius: 6px; text-decoration: none; color: var(--text); font-weight: 500;">
-              Apply
+            <a href="/enroll" style="display: inline-block; border: 1px solid var(--border); padding: 0.75rem 1.5rem; border-radius: 6px; text-decoration: none; color: var(--text); font-weight: 500;">
+              Enroll
             </a>
           </div>
         </>
@@ -232,8 +232,8 @@ const GatedMessage = ({ cohort, user, clerkPubKey }: { cohort: { title: string; 
             <a href="/sign-out" style="display: inline-block; border: 1px solid var(--border); padding: 0.75rem 1.5rem; border-radius: 6px; text-decoration: none; color: var(--text); font-weight: 500;">
               Sign Out
             </a>
-            <a href="/apply" style="display: inline-block; border: 1px solid var(--border); padding: 0.75rem 1.5rem; border-radius: 6px; text-decoration: none; color: var(--text); font-weight: 500;">
-              Apply
+            <a href="/enroll" style="display: inline-block; border: 1px solid var(--border); padding: 0.75rem 1.5rem; border-radius: 6px; text-decoration: none; color: var(--text); font-weight: 500;">
+              Enroll
             </a>
             <a href="mailto:ag@unforced.dev" style="display: inline-block; background: var(--accent); color: white; padding: 0.75rem 1.5rem; border-radius: 6px; text-decoration: none; font-weight: 500;">
               Email Aaron
@@ -255,7 +255,7 @@ cohortRoutes.get('/cohort/:slug', async (c) => {
 
   if (!cohort) {
     return c.html(
-      <Layout title="Not Found" user={user} clerkPubKey={c.env.CLERK_PUBLISHABLE_KEY}>
+      <Layout title="Not Found" user={user}>
         <div class="page-section" style="text-align: center; padding: 6rem 0;">
           <h2>Cohort not found</h2>
           <p><a href="/">← Back to homepage</a></p>
@@ -268,7 +268,7 @@ cohortRoutes.get('/cohort/:slug', async (c) => {
   // Access control: check if user can view this cohort
   const hasAccess = await canAccessCohort(c.env.DB, user, cohort.id, cohort.isPublic)
   if (!hasAccess) {
-    return c.html(<GatedMessage cohort={cohort} user={user} clerkPubKey={c.env.CLERK_PUBLISHABLE_KEY} />, 403)
+    return c.html(<GatedMessage cohort={cohort} user={user} />, 403)
   }
 
   const cohortLessons = await db
@@ -305,7 +305,7 @@ cohortRoutes.get('/cohort/:slug', async (c) => {
     : null
 
   return c.html(
-    <Layout title={cohort.title} description={cohort.description || undefined} user={user} clerkPubKey={c.env.CLERK_PUBLISHABLE_KEY}>
+    <Layout title={cohort.title} description={cohort.description || undefined} user={user}>
       <div class="page-section">
         <a href="/" class="back-link">← Home</a>
 
@@ -456,7 +456,7 @@ cohortRoutes.get('/cohort/:slug/week/:num', async (c) => {
 
   if (!cohort) {
     return c.html(
-      <Layout title="Not Found" user={user} clerkPubKey={c.env.CLERK_PUBLISHABLE_KEY}>
+      <Layout title="Not Found" user={user}>
         <div class="page-section" style="text-align: center; padding: 6rem 0;">
           <h2>Cohort not found</h2>
           <p><a href="/">← Back to homepage</a></p>
@@ -469,7 +469,7 @@ cohortRoutes.get('/cohort/:slug/week/:num', async (c) => {
   // Access control
   const hasAccess = await canAccessCohort(c.env.DB, user, cohort.id, cohort.isPublic)
   if (!hasAccess) {
-    return c.html(<GatedMessage cohort={cohort} user={user} clerkPubKey={c.env.CLERK_PUBLISHABLE_KEY} />, 403)
+    return c.html(<GatedMessage cohort={cohort} user={user} />, 403)
   }
 
   const lesson = await db
@@ -486,7 +486,7 @@ cohortRoutes.get('/cohort/:slug/week/:num', async (c) => {
 
   if (!lesson) {
     return c.html(
-      <Layout title="Not Found" user={user} clerkPubKey={c.env.CLERK_PUBLISHABLE_KEY}>
+      <Layout title="Not Found" user={user}>
         <div class="page-section" style="text-align: center; padding: 6rem 0;">
           <h2>Lesson not found</h2>
           <p><a href={`/cohort/${slug}`}>← Back to {cohort.title}</a></p>
@@ -619,7 +619,7 @@ cohortRoutes.get('/cohort/:slug/week/:num', async (c) => {
   const returnPath = `/cohort/${slug}/week/${weekNum}`
 
   return c.html(
-    <Layout title={`Week ${weekNum}: ${lesson.title}`} description={lesson.description || undefined} user={user} clerkPubKey={c.env.CLERK_PUBLISHABLE_KEY}>
+    <Layout title={`Week ${weekNum}: ${lesson.title}`} description={lesson.description || undefined} user={user}>
       <div class="page-section">
         <a href={`/cohort/${slug}`} class="back-link">← {cohort.title}</a>
 

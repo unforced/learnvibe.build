@@ -160,7 +160,7 @@ oauth.get('/oauth/authorize', async (c) => {
   const requestedScope = scope || 'mcp'
 
   return c.html(
-    <Layout title="Authorize Access" user={user} clerkPubKey={c.env.CLERK_PUBLISHABLE_KEY} noindex>
+    <Layout title="Authorize Access" user={user} noindex>
       <div class="page-section" style="max-width: 520px; margin: 0 auto; padding: 4rem 1rem;">
         <p class="section-label">Authorize Access</p>
         <h2 style="margin-top: 0.5rem;">

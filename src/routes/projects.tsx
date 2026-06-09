@@ -33,7 +33,7 @@ projectRoutes.get('/projects', async (c) => {
     .all()
 
   return c.html(
-    <Layout title="Projects" user={user} clerkPubKey={c.env.CLERK_PUBLISHABLE_KEY}>
+    <Layout title="Projects" user={user}>
       <div class="page-section">
         <a href="/community" class="back-link">← Community</a>
 
@@ -86,7 +86,7 @@ projectRoutes.get('/projects/new', async (c) => {
   const allCohorts = await db.select({ id: cohorts.id, title: cohorts.title }).from(cohorts).all()
 
   return c.html(
-    <Layout title="Share a Project" user={user} clerkPubKey={c.env.CLERK_PUBLISHABLE_KEY}>
+    <Layout title="Share a Project" user={user}>
       <div class="page-section" style="max-width: 600px; margin: 0 auto;">
         <a href="/projects" class="back-link">← Projects</a>
 
@@ -198,7 +198,7 @@ projectRoutes.get('/projects/:id', async (c) => {
 
   if (!result || result.project.status !== 'active') {
     return c.html(
-      <Layout title="Project Not Found" user={user} clerkPubKey={c.env.CLERK_PUBLISHABLE_KEY}>
+      <Layout title="Project Not Found" user={user}>
         <div class="page-section" style="text-align: center; padding: 6rem 0;">
           <h2>Project not found</h2>
           <p><a href="/projects">← Back to Projects</a></p>
@@ -214,7 +214,7 @@ projectRoutes.get('/projects/:id', async (c) => {
   const canEdit = isOwner || isAdmin(user)
 
   return c.html(
-    <Layout title={project.title} user={user} clerkPubKey={c.env.CLERK_PUBLISHABLE_KEY}>
+    <Layout title={project.title} user={user}>
       <div class="page-section" style="max-width: 700px; margin: 0 auto;">
         <a href="/projects" class="back-link">← Projects</a>
 
@@ -272,7 +272,7 @@ projectRoutes.get('/projects/:id/edit', async (c) => {
   const error = c.req.query('error')
 
   return c.html(
-    <Layout title={`Edit: ${project.title}`} user={user} clerkPubKey={c.env.CLERK_PUBLISHABLE_KEY}>
+    <Layout title={`Edit: ${project.title}`} user={user}>
       <div class="page-section" style="max-width: 600px; margin: 0 auto;">
         <a href={`/projects/${project.id}`} class="back-link">← Back to Project</a>
 

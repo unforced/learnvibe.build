@@ -38,6 +38,14 @@ export const applications = sqliteTable('applications', {
   userId: integer('user_id').references(() => users.id),
   /** Random token required on /payment/checkout/:id so sequential ids can't be guessed. */
   paymentToken: text('payment_token'),
+  /** Name or email of the person who referred this applicant. Manual $50
+   *  hub credit flow — admin tracks and applies credits separately. Added
+   *  in #46 (Summer 2026). Nullable for legacy and unsolicited apps. */
+  referredBy: text('referred_by'),
+  /** Free-form text when applicant selects the scholarship tier — captures
+   *  demonstrated need OR public benefit / non-profit / student academic
+   *  work context. Aaron reviews manually. Added in #46. */
+  scholarshipRequest: text('scholarship_request'),
   createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
 })
 
@@ -117,6 +125,10 @@ export const feedback = sqliteTable('feedback', {
   improvement: text('improvement'), // "What could be better?"
   canFeature: integer('can_feature').notNull().default(0), // 0 = private, 1 = named+linked, 2 = anonymous
   website: text('website'), // URL to link in testimonial attribution
+  /** Linked user account when feedback came from a signed-in member.
+   *  NULL for signed-out submissions (event attendees, pilot folks
+   *  without accounts). Added in #46. */
+  userId: integer('user_id').references(() => users.id),
   createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
 })
 
@@ -260,6 +272,45 @@ export const emailTemplates = sqliteTable('email_templates', {
   /** 1 = use this DB row; 0 = bypass and fall back to the hardcoded default. */
   active: integer('active').notNull().default(1),
 })
+
+// ===== MAGIC-LINK TOKENS =====
+// Backs passwordless sign-in (Clerk replacement). A request creates a row
+// with the SHA-256 hash of a random token; the raw token goes out only in
+// the emailed link. Verifying consumes the row (single-use) and issues a
+// signed session cookie. See src/lib/magic-link.ts + src/lib/session.ts.
+export const magicTokens = sqliteTable('magic_tokens', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  tokenHash: text('token_hash').notNull().unique(),
+  email: text('email').notNull(),
+  /** Optional display name captured on the sign-up path. */
+  name: text('name'),
+  /** Sanitized relative path to land on after verifying. */
+  redirectTo: text('redirect_to'),
+  used: integer('used').notNull().default(0),
+  expiresAt: text('expires_at').notNull(),
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (t) => ({
+  emailIdx: index('magic_tokens_email_idx').on(t.email),
+}))
+
+// ===== EMAIL-CHANGE TOKENS =====
+// Backs the "change my account email" flow. A request stores the SHA-256 hash
+// of a random token plus the requested new email; the raw token goes out only
+// in a confirmation link emailed to the NEW address (proving the requester
+// controls it). Confirming requires BOTH the link AND an active session for
+// the same user, so a mistyped/hostile new email can't be used to take over an
+// account. Single-use; consuming updates users.email. See src/lib/email-change.ts.
+export const emailChangeTokens = sqliteTable('email_change_tokens', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  tokenHash: text('token_hash').notNull().unique(),
+  userId: integer('user_id').notNull(),
+  newEmail: text('new_email').notNull(),
+  used: integer('used').notNull().default(0),
+  expiresAt: text('expires_at').notNull(),
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (t) => ({
+  userIdx: index('email_change_tokens_user_idx').on(t.userId),
+}))
 
 // ===== OAUTH CLIENTS (third-party apps registered via DCR, e.g. Claude) =====
 export const oauthClients = sqliteTable('oauth_clients', {

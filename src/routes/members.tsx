@@ -37,7 +37,7 @@ memberRoutes.get('/members', async (c) => {
     .all()
 
   return c.html(
-    <Layout title="Members" user={user} clerkPubKey={c.env.CLERK_PUBLISHABLE_KEY}>
+    <Layout title="Members" user={user}>
       <div class="page-section">
         <a href="/community" class="back-link">← Community</a>
 
@@ -97,7 +97,7 @@ memberRoutes.get('/members/:id', async (c) => {
 
   if (!member) {
     return c.html(
-      <Layout title="Member Not Found" user={user} clerkPubKey={c.env.CLERK_PUBLISHABLE_KEY}>
+      <Layout title="Member Not Found" user={user}>
         <div class="page-section" style="text-align: center; padding: 6rem 0;">
           <h2>Member not found</h2>
           <p><a href="/members">← Back to Members</a></p>
@@ -127,7 +127,7 @@ memberRoutes.get('/members/:id', async (c) => {
   const isOwnProfile = user.id === memberId
 
   return c.html(
-    <Layout title={member.name || 'Member Profile'} user={user} clerkPubKey={c.env.CLERK_PUBLISHABLE_KEY}>
+    <Layout title={member.name || 'Member Profile'} user={user}>
       <div class="page-section" style="max-width: 700px; margin: 0 auto;">
         <a href="/members" class="back-link">← Members</a>
 

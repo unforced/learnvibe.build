@@ -3,8 +3,8 @@ import { eq, desc, asc, and, gte, lte, like, or, ne, inArray } from 'drizzle-orm
 import { Layout } from '../components/Layout'
 import { getDb } from '../db'
 import { applications, cohorts, lessons, users, enrollments, payments, feedback, emailLog, emailTemplates, interests, lessonProgress, projects, discussions, comments, apiKeys, memberships } from '../db/schema'
-import { isAdmin, isClerkConfigured, generateToken } from '../lib/auth'
-import { formatCents, getAmountForTier, getTierLabel, getApplicationAmount, getApplicationLabel } from '../lib/stripe'
+import { isAdmin, generateToken } from '../lib/auth'
+import { formatCents, getAmountForTier, getTierLabel, getApplicationAmount, getApplicationLabel, PRICING_TIERS, TIERS_BY_COHORT } from '../lib/stripe'
 import { sendBroadcast, sendApplicationApproved, sendApplicationRejected, sendApplicationPriceChanged, sendEmail, isEmailConfigured, type BroadcastAudience, cohortBroadcastEmail } from '../lib/email'
 import { renderEmailTemplate, renderEmailTemplateFromSource, DEFAULT_TEMPLATES, TEMPLATE_KEYS, TEMPLATE_LABELS } from '../lib/email-templates'
 import { enrollUserAndNotify, findUserByEmail } from '../lib/enrollment'
@@ -15,20 +15,19 @@ import type { AppContext } from '../types'
 const admin = new Hono<AppContext>()
 
 // ===== ADMIN GUARD =====
-// When Clerk is configured: require admin role
-// When Clerk is NOT configured (dev): allow access for development
+// Require admin role. On localhost with no session, bypass for local dev.
 admin.use('/admin/*', async (c, next) => {
   const user = c.get('user')
 
-  // Dev bypass — only on localhost AND without Clerk. Prevents production
-  // from accidentally running admin without auth if Clerk vars get cleared.
-  if (!isClerkConfigured(c)) {
+  // Dev bypass — only on localhost AND with no active session. Lets local
+  // development reach admin pages without a real magic-link session. Never
+  // triggers in production (hostname is never localhost there).
+  if (!user) {
     const hostname = new URL(c.req.url).hostname
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
       await next()
       return
     }
-    return c.text('Admin not available — auth not configured.', 503)
   }
 
   // If not logged in, redirect to sign-in (don't show 403 for transient auth failures)
@@ -39,7 +38,7 @@ admin.use('/admin/*', async (c, next) => {
   // In production, require admin role
   if (!isAdmin(user)) {
     return c.html(
-      <Layout title="Unauthorized" user={user} clerkPubKey={c.env.CLERK_PUBLISHABLE_KEY}>
+      <Layout title="Unauthorized" user={user}>
         <div class="page-section" style="max-width: 500px; margin: 0 auto; text-align: center; padding: 6rem 0;">
           <h2>Unauthorized</h2>
           <p style="margin-top: 1rem; color: var(--text-secondary);">
@@ -86,7 +85,7 @@ admin.get('/admin', async (c) => {
   const conversionRate = allApps.length > 0 ? Math.round((enrolledApps / allApps.length) * 100) : 0
 
   return c.html(
-    <Layout title="Admin Dashboard" user={user} clerkPubKey={c.env.CLERK_PUBLISHABLE_KEY} noindex>
+    <Layout title="Admin Dashboard" user={user} noindex>
       <div class="page-section" style="max-width: 900px; margin: 0 auto;">
         <p class="section-label">Admin</p>
         <h2>Dashboard</h2>
@@ -318,7 +317,7 @@ admin.get('/admin/applications', async (c) => {
   }
 
   return c.html(
-    <Layout title="Applications" user={user} clerkPubKey={c.env.CLERK_PUBLISHABLE_KEY} noindex>
+    <Layout title="Applications" user={user} noindex>
       <div class="page-section" style="max-width: 900px; margin: 0 auto;">
         <a href="/admin" class="back-link">← Admin</a>
         <p class="section-label">Applications</p>
@@ -414,9 +413,9 @@ admin.get('/admin/applications', async (c) => {
             <form method="post" action="/api/admin/applications/bulk" style="display: flex; gap: 0.5rem; align-items: center;">
               <input type="hidden" name="ids" value={allApps.map(a => a.id).join(',')} />
               <select name="pricing_tier" style="padding: 0.4rem 0.75rem; border: 1px solid var(--border); border-radius: 4px; font-size: 0.85rem;">
-                <option value="standard">Full Price ($500)</option>
-                <option value="discounted">Discounted ($250)</option>
-                <option value="sponsor">Sponsored ($0)</option>
+                {Object.entries(PRICING_TIERS).map(([key, value]) => (
+                  <option value={key}>{value.label} ({formatCents(value.amountCents)})</option>
+                ))}
               </select>
               <button type="submit" name="action" value="approve" style="padding: 0.4rem 1rem; background: #16a34a; color: white; border: none; border-radius: 4px; font-size: 0.85rem; cursor: pointer;"
                 onclick={`return confirm('Approve ${allApps.length} application${allApps.length === 1 ? '' : 's'}? This will send approval emails immediately.')`}>
@@ -485,6 +484,16 @@ admin.get('/admin/applications', async (c) => {
                     {app.pricingTier !== 'pending' && (
                       <span style="font-size: 0.75rem; color: var(--text-tertiary);">{getTierLabel(app.pricingTier)}</span>
                     )}
+                    {app.scholarshipRequest && (
+                      <span title="Applied for scholarship — see detail for context" style="font-size: 0.75rem; background: #fdf4ff; color: #86198f; border: 1px solid #f5d0fe; border-radius: 999px; padding: 0.15rem 0.55rem; font-weight: 500;">
+                        Scholarship
+                      </span>
+                    )}
+                    {app.referredBy && (
+                      <span title={`Referred by ${app.referredBy} — $50 hub credit owed if enrolled`} style="font-size: 0.75rem; background: #ecfeff; color: #155e75; border: 1px solid #a5f3fc; border-radius: 999px; padding: 0.15rem 0.55rem; font-weight: 500;">
+                        Referred
+                      </span>
+                    )}
                     <span class={`badge badge-${app.status === 'approved' || app.status === 'enrolled' ? 'active' : app.status === 'rejected' ? 'completed' : 'pending'}`}>
                       {app.status}
                     </span>
@@ -531,7 +540,7 @@ admin.get('/admin/applications/:id', async (c) => {
 
   if (!app) {
     return c.html(
-      <Layout title="Not Found" user={user} clerkPubKey={c.env.CLERK_PUBLISHABLE_KEY} noindex>
+      <Layout title="Not Found" user={user} noindex>
         <div class="page-section" style="text-align: center; padding: 6rem 0;">
           <h2>Application not found</h2>
           <a href="/admin/applications" class="back-link">← Back to applications</a>
@@ -542,7 +551,7 @@ admin.get('/admin/applications/:id', async (c) => {
   }
 
   return c.html(
-    <Layout title={`Application: ${app.name}`} user={user} clerkPubKey={c.env.CLERK_PUBLISHABLE_KEY} noindex>
+    <Layout title={`Application: ${app.name}`} user={user} noindex>
       <div class="page-section" style="max-width: 700px; margin: 0 auto;">
         <a href="/admin/applications" class="back-link">← All Applications</a>
 
@@ -572,7 +581,35 @@ admin.get('/admin/applications/:id', async (c) => {
             <p>{app.referralSource}</p>
           </div>
 
-          {app.requestedAmountCents != null && (
+          {app.referredBy && (
+            <div class="admin-detail-section" style="background: #ecfeff; border: 1px solid #a5f3fc; border-radius: 8px; padding: 1rem 1.25rem;">
+              <h3 style="font-family: var(--font-display); color: #155e75; margin: 0 0 0.35rem 0;">
+                Referred by
+              </h3>
+              <p style="margin: 0; color: #0e7490; font-size: 0.95rem;">{app.referredBy}</p>
+              <p style="margin: 0.4rem 0 0 0; color: #155e75; font-size: 0.8rem; font-style: italic;">$50 Regen Hub credit owed if applicant enrolls. Manual flow.</p>
+            </div>
+          )}
+
+          {app.scholarshipRequest && (
+            <div class="admin-detail-section" style="background: #fdf4ff; border: 1px solid #f5d0fe; border-radius: 8px; padding: 1rem 1.25rem;">
+              <h3 style="font-family: var(--font-display); color: #86198f; margin: 0 0 0.35rem 0;">
+                Scholarship request
+              </h3>
+              <p style="margin: 0; color: #701a75; font-size: 0.95rem; white-space: pre-wrap;">{app.scholarshipRequest}</p>
+            </div>
+          )}
+
+          {app.pricingTier !== 'pending' && PRICING_TIERS[app.pricingTier] ? (
+            // New (Summer 2026+) flow — applicant self-selected a tier on
+            // the form. Show what they chose so admin can confirm or change.
+            <div class="admin-detail-section" style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 0.75rem 1.25rem;">
+              <p style="margin: 0; color: #166534; font-size: 0.95rem;">
+                ✓ Applicant selected: <strong>{PRICING_TIERS[app.pricingTier].label}</strong> ({formatCents(PRICING_TIERS[app.pricingTier].amountCents)})
+              </p>
+            </div>
+          ) : app.requestedAmountCents != null && (
+            // Legacy (Spring 2026) flow — pay-what-you-can with optional reason.
             app.requestedAmountCents === 50000 && !app.requestedAmountReason ? (
               <div class="admin-detail-section" style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 0.75rem 1.25rem;">
                 <p style="margin: 0; color: #166534; font-size: 0.95rem;">
@@ -641,9 +678,15 @@ admin.get('/admin/applications/:id', async (c) => {
             <form method="post" action={`/api/admin/applications/${app.id}/tier`} style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #bbf7d0; display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center;" data-tier-sync-form>
               <label style="font-size: 0.85rem; color: #15803d;">Tier:</label>
               <select name="pricing_tier" data-tier-select style="padding: 0.4rem 0.75rem; border: 1px solid #bbf7d0; border-radius: 4px; font-size: 0.85rem; background: white;">
-                <option value="standard" selected={app.pricingTier === 'standard'} data-tier-amount="500">Full Price ($500)</option>
-                <option value="discounted" selected={app.pricingTier === 'discounted'} data-tier-amount="250">Discounted ($250)</option>
-                <option value="sponsor" selected={app.pricingTier === 'sponsor'} data-tier-amount="0">Sponsored ($0)</option>
+                {(TIERS_BY_COHORT[app.cohortSlug] ?? Object.keys(PRICING_TIERS)).map(tierKey => {
+                  const t = PRICING_TIERS[tierKey]
+                  if (!t) return null
+                  return (
+                    <option value={tierKey} selected={app.pricingTier === tierKey} data-tier-amount={t.amountCents / 100}>
+                      {t.label} ({formatCents(t.amountCents)})
+                    </option>
+                  )
+                })}
               </select>
               <label style="font-size: 0.85rem; color: #15803d;">Amount $</label>
               <input
@@ -687,9 +730,15 @@ admin.get('/admin/applications/:id', async (c) => {
               <div class="form-group">
                 <label for="pricing_tier">Pricing Tier</label>
                 <select id="pricing_tier" name="pricing_tier" data-tier-select style="width: 100%; padding: 0.75rem; border: 1px solid var(--border); border-radius: 6px; font-size: 1rem;">
-                  <option value="standard" data-tier-amount="500">Full Price ($500)</option>
-                  <option value="discounted" data-tier-amount="250">Discounted ($250)</option>
-                  <option value="sponsor" data-tier-amount="0">Sponsored ($0)</option>
+                  {(TIERS_BY_COHORT[app.cohortSlug] ?? Object.keys(PRICING_TIERS)).map(tierKey => {
+                    const t = PRICING_TIERS[tierKey]
+                    if (!t) return null
+                    return (
+                      <option value={tierKey} data-tier-amount={t.amountCents / 100}>
+                        {t.label} ({formatCents(t.amountCents)})
+                      </option>
+                    )
+                  })}
                 </select>
                 <p style="margin-top: 0.5rem; font-size: 0.85rem; color: var(--text-tertiary);">Selecting a tier auto-fills the amount below. Edit the amount to override.</p>
               </div>
@@ -776,7 +825,6 @@ admin.get('/admin/interests', async (c) => {
   const fFrom = (c.req.query('from') || '').trim()
   const fTo = (c.req.query('to') || '').trim()
   const fQ = (c.req.query('q') || '').trim()
-  const fAudience = (c.req.query('audience') || '').trim() // 'synced' | 'pending'
   const fAccount = (c.req.query('account') || '').trim()  // 'linked' | 'unlinked'
   const isValidDate = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s)
 
@@ -788,8 +836,6 @@ admin.get('/admin/interests', async (c) => {
       try { return (JSON.parse(r.interestsJson) as string[]).includes(fInterest) } catch { return false }
     })
   }
-  if (fAudience === 'synced') rows = rows.filter(r => !!r.resendContactId)
-  if (fAudience === 'pending') rows = rows.filter(r => !r.resendContactId)
   if (fAccount === 'linked') rows = rows.filter(r => !!r.userId)
   if (fAccount === 'unlinked') rows = rows.filter(r => !r.userId)
   if (isValidDate(fFrom)) {
@@ -808,7 +854,7 @@ admin.get('/admin/interests', async (c) => {
     )
   }
 
-  const filtersActive = !!(fInterest || fAudience || fAccount || isValidDate(fFrom) || isValidDate(fTo) || fQ)
+  const filtersActive = !!(fInterest || fAccount || isValidDate(fFrom) || isValidDate(fTo) || fQ)
   const interestLabels: Record<string, string> = {
     next_cohort: 'Next cohort',
     alumni: 'Alumni',
@@ -817,13 +863,13 @@ admin.get('/admin/interests', async (c) => {
   }
 
   return c.html(
-    <Layout title="Interest List" user={user} clerkPubKey={c.env.CLERK_PUBLISHABLE_KEY} noindex>
+    <Layout title="Interest List" user={user} noindex>
       <div class="page-section" style="max-width: 1000px; margin: 0 auto;">
         <a href="/admin" class="back-link">← Admin</a>
         <p class="section-label">Interests</p>
         <h2>Interest List ({rows.length}{filtersActive ? ` of ${allRowsCount}` : ''})</h2>
         <p style="margin-top: 0.5rem; color: var(--text-secondary); font-size: 0.95rem;">
-          Soft signups from <code style="background: var(--surface); padding: 0.1rem 0.35rem; border-radius: 4px;">/interest</code>. The "Synced" filter shows whether a Resend audience contact id was recorded — failed syncs land as "Pending" and can be resynced later.
+          Soft signups from <code style="background: var(--surface); padding: 0.1rem 0.35rem; border-radius: 4px;">/interest</code>. Linked rows have a matching user account (the funnel: interest → signup → application → enrollment).
         </p>
 
         {/* Filter form */}
@@ -835,14 +881,6 @@ admin.get('/admin/interests', async (c) => {
               {Object.entries(interestLabels).map(([key, label]) => (
                 <option value={key} selected={fInterest === key}>{label}</option>
               ))}
-            </select>
-          </div>
-          <div style="display: flex; flex-direction: column; gap: 0.25rem;">
-            <label for="filter-audience" style="font-family: var(--font-mono); font-size: 0.68rem; text-transform: uppercase; color: var(--text-tertiary); letter-spacing: 0.05em;">Audience sync</label>
-            <select id="filter-audience" name="audience" style="padding: 0.4rem 0.55rem; border: 1px solid var(--border); border-radius: 5px; font-size: 0.85rem; background: var(--white);">
-              <option value="">All</option>
-              <option value="synced" selected={fAudience === 'synced'}>Synced</option>
-              <option value="pending" selected={fAudience === 'pending'}>Pending</option>
             </select>
           </div>
           <div style="display: flex; flex-direction: column; gap: 0.25rem;">
@@ -894,7 +932,6 @@ admin.get('/admin/interests', async (c) => {
                   <th style="padding: 0.75rem 0.5rem; font-family: var(--font-mono); font-size: 0.75rem; text-transform: uppercase; color: var(--text-tertiary); letter-spacing: 0.05em;">Account</th>
                   <th style="padding: 0.75rem 0.5rem; font-family: var(--font-mono); font-size: 0.75rem; text-transform: uppercase; color: var(--text-tertiary); letter-spacing: 0.05em;">Interests</th>
                   <th style="padding: 0.75rem 0.5rem; font-family: var(--font-mono); font-size: 0.75rem; text-transform: uppercase; color: var(--text-tertiary); letter-spacing: 0.05em;">Source</th>
-                  <th style="padding: 0.75rem 0.5rem; font-family: var(--font-mono); font-size: 0.75rem; text-transform: uppercase; color: var(--text-tertiary); letter-spacing: 0.05em;">Synced</th>
                   <th style="padding: 0.75rem 0.5rem; font-family: var(--font-mono); font-size: 0.75rem; text-transform: uppercase; color: var(--text-tertiary); letter-spacing: 0.05em;">Joined</th>
                 </tr>
               </thead>
@@ -910,7 +947,7 @@ admin.get('/admin/interests', async (c) => {
                       <td style="padding: 0.75rem 0.5rem;">{r.name || <span style="color: var(--text-tertiary);">—</span>}</td>
                       <td style="padding: 0.75rem 0.5rem;">
                         {r.userId ? (
-                          <a href={`/admin/accounts/${r.userId}`} title="Linked to a Clerk user account — click to view" style="font-size: 0.7rem; background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; border-radius: 999px; padding: 0.15rem 0.6rem; font-weight: 500; text-decoration: none; display: inline-block;">
+                          <a href={`/admin/accounts/${r.userId}`} title="Linked to a user account — click to view" style="font-size: 0.7rem; background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; border-radius: 999px; padding: 0.15rem 0.6rem; font-weight: 500; text-decoration: none; display: inline-block;">
                             ✓ Linked
                           </a>
                         ) : (
@@ -928,13 +965,6 @@ admin.get('/admin/interests', async (c) => {
                       </td>
                       <td style="padding: 0.75rem 0.5rem; font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-tertiary);">
                         {r.sourcePath || '—'}
-                      </td>
-                      <td style="padding: 0.75rem 0.5rem;">
-                        {r.resendContactId ? (
-                          <span title={r.resendContactId} style="color: #16a34a; font-size: 0.85rem;">✓</span>
-                        ) : (
-                          <span title="No Resend contact id stored — audience-add was skipped or failed" style="color: #dc2626; font-size: 0.85rem;">Pending</span>
-                        )}
                       </td>
                       <td style="padding: 0.75rem 0.5rem; font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-tertiary); white-space: nowrap;">
                         {new Date(r.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
@@ -967,7 +997,7 @@ admin.get('/admin/lessons', async (c) => {
     .all()
 
   return c.html(
-    <Layout title="Manage Lessons" user={user} clerkPubKey={c.env.CLERK_PUBLISHABLE_KEY} noindex>
+    <Layout title="Manage Lessons" user={user} noindex>
       <div class="page-section" style="max-width: 900px; margin: 0 auto;">
         <a href="/admin" class="back-link">← Admin</a>
         <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -1017,7 +1047,7 @@ admin.get('/admin/lessons/new', async (c) => {
   const cohortList = await db.select().from(cohorts).orderBy(asc(cohorts.id)).all()
 
   return c.html(
-    <Layout title="New Lesson" user={user} clerkPubKey={c.env.CLERK_PUBLISHABLE_KEY} noindex>
+    <Layout title="New Lesson" user={user} noindex>
       <div class="page-section" style="max-width: 700px; margin: 0 auto;">
         <a href="/admin/lessons" class="back-link">← All Lessons</a>
         <p class="section-label">Create</p>
@@ -1089,7 +1119,7 @@ admin.get('/admin/lessons/:id/edit', async (c) => {
   const lesson = await db.select().from(lessons).where(eq(lessons.id, id)).get()
   if (!lesson) {
     return c.html(
-      <Layout title="Not Found" user={user} clerkPubKey={c.env.CLERK_PUBLISHABLE_KEY} noindex>
+      <Layout title="Not Found" user={user} noindex>
         <div class="page-section" style="text-align: center; padding: 6rem 0;">
           <h2>Lesson not found</h2>
           <a href="/admin/lessons" class="back-link">← Back to lessons</a>
@@ -1102,7 +1132,7 @@ admin.get('/admin/lessons/:id/edit', async (c) => {
   const cohortList = await db.select().from(cohorts).orderBy(asc(cohorts.id)).all()
 
   return c.html(
-    <Layout title={`Edit: ${lesson.title}`} user={user} clerkPubKey={c.env.CLERK_PUBLISHABLE_KEY} noindex>
+    <Layout title={`Edit: ${lesson.title}`} user={user} noindex>
       <div class="page-section" style="max-width: 700px; margin: 0 auto;">
         <a href="/admin/lessons" class="back-link">← All Lessons</a>
         <p class="section-label">Edit Lesson</p>
@@ -1212,7 +1242,7 @@ admin.get('/admin/feedback', async (c) => {
   }
 
   return c.html(
-    <Layout title="Feedback" user={user} clerkPubKey={c.env.CLERK_PUBLISHABLE_KEY} noindex>
+    <Layout title="Feedback" user={user} noindex>
       <div class="page-section" style="max-width: 900px; margin: 0 auto;">
         <p class="section-label">Admin</p>
         <h2>Feedback ({allFeedback.length})</h2>
@@ -1336,7 +1366,7 @@ admin.get('/admin/accounts', async (c) => {
   const thStyle = "padding: 0.75rem 0.5rem; font-family: var(--font-mono); font-size: 0.75rem; text-transform: uppercase; color: var(--text-tertiary); letter-spacing: 0.05em;"
 
   return c.html(
-    <Layout title="All Accounts" user={user} clerkPubKey={c.env.CLERK_PUBLISHABLE_KEY} noindex>
+    <Layout title="All Accounts" user={user} noindex>
       <div class="page-section" style="max-width: 1100px; margin: 0 auto;">
         <a href="/admin" class="back-link">← Admin</a>
         <p class="section-label">Accounts</p>
@@ -1471,7 +1501,7 @@ admin.get('/admin/accounts/:id', async (c) => {
   const account = await db.select().from(users).where(eq(users.id, id)).get()
   if (!account) {
     return c.html(
-      <Layout title="Not Found" user={currentUser} clerkPubKey={c.env.CLERK_PUBLISHABLE_KEY} noindex>
+      <Layout title="Not Found" user={currentUser} noindex>
         <div class="page-section" style="text-align: center; padding: 6rem 0;">
           <h2>Account not found</h2>
           <a href="/admin/accounts" class="back-link">← Back to accounts</a>
@@ -1491,7 +1521,7 @@ admin.get('/admin/accounts/:id', async (c) => {
   const userPayments = await db.select().from(payments).where(eq(payments.userId, id)).all()
 
   return c.html(
-    <Layout title={`Account: ${account.name || account.email}`} user={currentUser} clerkPubKey={c.env.CLERK_PUBLISHABLE_KEY} noindex>
+    <Layout title={`Account: ${account.name || account.email}`} user={currentUser} noindex>
       <div class="page-section" style="max-width: 700px; margin: 0 auto;">
         <a href="/admin/accounts" class="back-link">← All Accounts</a>
 
@@ -1655,7 +1685,7 @@ admin.get('/admin/emails', async (c) => {
   const limitHit = logs.length >= ROW_LIMIT
 
   return c.html(
-    <Layout title="Email Log" user={user} clerkPubKey={c.env.CLERK_PUBLISHABLE_KEY} noindex>
+    <Layout title="Email Log" user={user} noindex>
       <div class="page-section" style="max-width: 1000px; margin: 0 auto;">
         <a href="/admin" class="back-link">← Admin</a>
         <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -1872,7 +1902,7 @@ admin.get('/admin/email/preview', async (c) => {
     }),
   )
   return c.html(
-    <Layout title="Email Previews" user={user} clerkPubKey={c.env.CLERK_PUBLISHABLE_KEY} noindex>
+    <Layout title="Email Previews" user={user} noindex>
       <div class="page-section" style="max-width: 900px; margin: 0 auto;">
         <a href="/admin/emails" class="back-link">← Email Log</a>
         <p class="section-label">Emails</p>
@@ -1952,14 +1982,14 @@ admin.get('/admin/emails/:id', async (c) => {
   const errorCode = c.req.query('error') || ''
   const ERROR_MESSAGES: Record<string, string> = {
     no_body: 'This row has no stored body — it was logged before the body_html column existed. Resend not possible.',
-    not_configured: 'Email is not configured (RESEND_API_KEY missing).',
-    send_failed: 'Resend failed. Check the new log entry for the error.',
+    not_configured: 'Email is not configured (EMAIL binding missing).',
+    send_failed: 'Send failed. Check the new log entry for the error.',
   }
   const errorMessage = errorCode && (ERROR_MESSAGES[errorCode] || `Something went wrong (${errorCode}).`)
 
   const sentDate = new Date(row.sentAt).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })
   return c.html(
-    <Layout title={`Email — ${row.subject}`} user={user} clerkPubKey={c.env.CLERK_PUBLISHABLE_KEY} noindex>
+    <Layout title={`Email — ${row.subject}`} user={user} noindex>
       <div class="page-section" style="max-width: 900px; margin: 0 auto;">
         <a href="/admin/emails" class="back-link">← Email Log</a>
         <p class="section-label">Email log</p>
@@ -2029,11 +2059,11 @@ admin.post('/api/admin/emails/:id/resend', async (c) => {
   const row = await db.select().from(emailLog).where(eq(emailLog.id, id)).get()
   if (!row) return c.redirect(`/admin/emails`)
   if (!row.bodyHtml) return c.redirect(`/admin/emails/${id}?error=no_body`)
-  if (!isEmailConfigured(c.env.RESEND_API_KEY)) return c.redirect(`/admin/emails/${id}?error=not_configured`)
+  if (!isEmailConfigured(c.env.EMAIL)) return c.redirect(`/admin/emails/${id}?error=not_configured`)
   // Re-fire the EXACT body we previously sent — no re-rendering, no
   // template lookup. Logs a new email_log row via sendEmail's normal path.
   const result = await sendEmail({
-    apiKey: c.env.RESEND_API_KEY,
+    emailBinding: c.env.EMAIL,
     from: c.env.EMAIL_FROM,
     replyTo: c.env.EMAIL_REPLY_TO,
     to: row.to,
@@ -2059,7 +2089,7 @@ admin.get('/admin/email/templates', async (c) => {
   const byKey = new Map(rows.map(r => [r.key, r]))
 
   return c.html(
-    <Layout title="Email Templates" user={user} clerkPubKey={c.env.CLERK_PUBLISHABLE_KEY} noindex>
+    <Layout title="Email Templates" user={user} noindex>
       <div class="page-section" style="max-width: 900px; margin: 0 auto;">
         <a href="/admin/emails" class="back-link">← Email Log</a>
         <p class="section-label">Emails</p>
@@ -2136,7 +2166,7 @@ admin.get('/admin/email/templates/:key/edit', async (c) => {
   const reset = c.req.query('reset') === '1'
 
   return c.html(
-    <Layout title={`Edit template: ${TEMPLATE_LABELS[key] || key}`} user={user} clerkPubKey={c.env.CLERK_PUBLISHABLE_KEY} noindex>
+    <Layout title={`Edit template: ${TEMPLATE_LABELS[key] || key}`} user={user} noindex>
       <div class="page-section" style="max-width: 1100px; margin: 0 auto;">
         <a href="/admin/email/templates" class="back-link">← All templates</a>
         <p class="section-label">Edit template</p>
@@ -2315,10 +2345,10 @@ admin.get('/admin/email/compose', async (c) => {
   const to = c.req.query('to') || ''
   const name = c.req.query('name') || ''
   const success = c.req.query('success')
-  const emailConfigured = isEmailConfigured(c.env.RESEND_API_KEY)
+  const emailConfigured = isEmailConfigured(c.env.EMAIL)
 
   return c.html(
-    <Layout title="Compose Email" user={user} clerkPubKey={c.env.CLERK_PUBLISHABLE_KEY} noindex>
+    <Layout title="Compose Email" user={user} noindex>
       <div class="page-section" style="max-width: 700px; margin: 0 auto;">
         <a href="/admin" class="back-link">← Admin</a>
         <p class="section-label">Email</p>
@@ -2326,7 +2356,7 @@ admin.get('/admin/email/compose', async (c) => {
 
         {!emailConfigured && (
           <div style="margin-top: 1rem; padding: 1rem; background: #fef3cd; border: 1px solid #ffc107; border-radius: 8px; font-size: 0.9rem; color: #856404;">
-            Email is not configured. Set <code>RESEND_API_KEY</code> to enable sending.
+            Email is not configured. The <code>EMAIL</code> binding is missing.
           </div>
         )}
 
@@ -2383,10 +2413,10 @@ admin.get('/admin/email', async (c) => {
   const errorMessage = errorCode && (ERROR_MESSAGES[errorCode] || `Something went wrong (${errorCode}).`)
 
   const cohortList = await db.select().from(cohorts).orderBy(asc(cohorts.id)).all()
-  const emailConfigured = isEmailConfigured(c.env.RESEND_API_KEY)
+  const emailConfigured = isEmailConfigured(c.env.EMAIL)
 
   return c.html(
-    <Layout title="Send Email" user={user} clerkPubKey={c.env.CLERK_PUBLISHABLE_KEY} noindex>
+    <Layout title="Send Email" user={user} noindex>
       <div class="page-section" style="max-width: 700px; margin: 0 auto;">
         <a href="/admin" class="back-link">← Admin</a>
         <p class="section-label">Email</p>
@@ -2394,7 +2424,7 @@ admin.get('/admin/email', async (c) => {
 
         {!emailConfigured && (
           <div style="margin-top: 1rem; padding: 1rem; background: #fef3cd; border: 1px solid #ffc107; border-radius: 8px; font-size: 0.9rem; color: #856404;">
-            Email is not configured yet. Set the <code>RESEND_API_KEY</code> secret to enable sending.
+            Email is not configured yet. The <code>EMAIL</code> binding is missing.
           </div>
         )}
 
@@ -2669,11 +2699,15 @@ admin.post('/api/admin/email/broadcast', async (c) => {
 // These endpoints are called by HTML form POSTs, so handle auth failures
 // with redirects (not JSON) to match the HTML admin guard behavior.
 admin.use('/api/admin/*', async (c, next) => {
-  if (!isClerkConfigured(c)) {
-    await next()
-    return
-  }
   const user = c.get('user')
+  // Dev bypass — only on localhost with no active session.
+  if (!user) {
+    const hostname = new URL(c.req.url).hostname
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      await next()
+      return
+    }
+  }
   if (!user) {
     // Session expired or not authenticated — redirect to sign-in.
     // Use the Referer header to send the user back to the page they were on.
@@ -2748,6 +2782,12 @@ admin.post('/api/admin/applications/:id/status', async (c) => {
     const baseUrl = new URL(c.req.url).origin
     const paymentUrl = `${baseUrl}/payment/checkout/${app.id}?t=${app.paymentToken}`
 
+    // Look up the cohort by the application's cohortSlug — NOT a hardcoded
+    // value. Used for both auto-enroll (sponsored) and to pass cohortTitle
+    // into the approval email so wording is accurate per-cohort.
+    const cohort = await db.select().from(cohorts).where(eq(cohorts.slug, app.cohortSlug)).get()
+    const cohortTitle = cohort?.title ?? app.cohortSlug
+
     // Sponsored applicants: if a user account already exists for this
     // email, enroll them immediately and send the welcome email. The
     // approval email is skipped — the welcome email is the right
@@ -2757,7 +2797,6 @@ admin.post('/api/admin/applications/:id/status', async (c) => {
     let autoEnrolled = false
     if (isSponsored) {
       const existingUser = await findUserByEmail(db, app.email)
-      const cohort = await db.select().from(cohorts).where(eq(cohorts.slug, 'cohort-1')).get()
       if (existingUser && cohort) {
         c.executionCtx.waitUntil(
           enrollUserAndNotify(db, c.env, {
@@ -2780,14 +2819,19 @@ admin.post('/api/admin/applications/:id/status', async (c) => {
           paymentUrl,
           getApplicationLabel(app),
           formatCents(amountCents),
-          isSponsored
+          isSponsored,
+          cohortTitle,
         )
       )
     }
   } else if (app && status === 'rejected') {
-    // Send rejection email (non-blocking)
+    // Look up cohort title so the rejection email uses the right name.
+    const cohort = await db.select({ title: cohorts.title })
+      .from(cohorts)
+      .where(eq(cohorts.slug, app.cohortSlug))
+      .get()
     c.executionCtx.waitUntil(
-      sendApplicationRejected(c.env, app.email, app.name)
+      sendApplicationRejected(c.env, app.email, app.name, cohort?.title ?? app.cohortSlug)
     )
   }
 
@@ -2953,6 +2997,10 @@ admin.post('/api/admin/applications/:id/tier', async (c) => {
   if (notify && newAmountCents !== prevAmountCents && updated.status === 'approved') {
     const baseUrl = new URL(c.req.url).origin
     const paymentUrl = `${baseUrl}/payment/checkout/${updated.id}${updated.paymentToken ? `?t=${updated.paymentToken}` : ''}`
+    const cohort = await db.select({ title: cohorts.title })
+      .from(cohorts)
+      .where(eq(cohorts.slug, updated.cohortSlug))
+      .get()
     c.executionCtx.waitUntil(
       sendApplicationPriceChanged(
         c.env,
@@ -2962,7 +3010,8 @@ admin.post('/api/admin/applications/:id/tier', async (c) => {
         formatCents(newAmountCents),
         getApplicationLabel(updated),
         paymentUrl,
-        newAmountCents === 0
+        newAmountCents === 0,
+        cohort?.title ?? updated.cohortSlug,
       )
     )
   }
@@ -2977,7 +3026,12 @@ admin.post('/api/admin/applications/bulk', async (c) => {
   const ids = String(body.ids || '').split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n))
   const action = String(body.action || '')
   const pricingTier = String(body.pricing_tier || 'standard')
-  const validTiers = ['standard', 'discounted', 'sponsor']
+  // Union of all known tiers — bulk validation passes if it's a known
+  // tier anywhere. Per-app cohort validity is enforced when the email is
+  // sent / amount resolved by getApplicationAmount(). Worst case: a tier
+  // gets stored that doesn't match the app's cohort, and PRICING_TIERS
+  // resolves it to its named amount anyway (or the $500 fallback).
+  const validTiers = Object.keys(PRICING_TIERS)
 
   if (ids.length === 0 || (action !== 'approve' && action !== 'reject')) {
     return c.redirect('/admin/applications')
@@ -3007,17 +3061,25 @@ admin.post('/api/admin/applications/bulk', async (c) => {
 
     // Send emails (non-blocking)
     const app = await db.select().from(applications).where(eq(applications.id, id)).get()
-    if (app && status === 'approved') {
-      const amountCents = getAmountForTier(pricingTier)
-      const baseUrl = new URL(c.req.url).origin
-      const paymentUrl = `${baseUrl}/payment/checkout/${app.id}?t=${app.paymentToken}`
-      c.executionCtx.waitUntil(
-        sendApplicationApproved(c.env, app.email, app.name, paymentUrl, getTierLabel(pricingTier), formatCents(amountCents), amountCents === 0)
-      )
-    } else if (app && status === 'rejected') {
-      c.executionCtx.waitUntil(
-        sendApplicationRejected(c.env, app.email, app.name)
-      )
+    if (app) {
+      const cohort = await db.select({ title: cohorts.title })
+        .from(cohorts)
+        .where(eq(cohorts.slug, app.cohortSlug))
+        .get()
+      const cohortTitle = cohort?.title ?? app.cohortSlug
+
+      if (status === 'approved') {
+        const amountCents = getAmountForTier(pricingTier)
+        const baseUrl = new URL(c.req.url).origin
+        const paymentUrl = `${baseUrl}/payment/checkout/${app.id}?t=${app.paymentToken}`
+        c.executionCtx.waitUntil(
+          sendApplicationApproved(c.env, app.email, app.name, paymentUrl, getTierLabel(pricingTier), formatCents(amountCents), amountCents === 0, cohortTitle)
+        )
+      } else if (status === 'rejected') {
+        c.executionCtx.waitUntil(
+          sendApplicationRejected(c.env, app.email, app.name, cohortTitle)
+        )
+      }
     }
   }
 
@@ -3099,7 +3161,7 @@ admin.post('/api/admin/email/send', async (c) => {
 
   // Use the branded email wrapper via sendEmail
   const result = await sendEmail({
-    apiKey: c.env.RESEND_API_KEY,
+    emailBinding: c.env.EMAIL,
     from: c.env.EMAIL_FROM,
     to,
     subject: `${subject} — Learn Vibe Build`,

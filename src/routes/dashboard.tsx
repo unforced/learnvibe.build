@@ -3,7 +3,6 @@ import { eq, and, desc } from 'drizzle-orm'
 import { Layout } from '../components/Layout'
 import { getDb } from '../db'
 import { enrollments, cohorts, applications, lessons, lessonProgress, projects, interests } from '../db/schema'
-import { isClerkConfigured } from '../lib/auth'
 import { formatCents, getApplicationAmount } from '../lib/stripe'
 import { getRecentActivity } from '../lib/activity'
 import type { AppContext } from '../types'
@@ -15,19 +14,6 @@ dashboard.get('/dashboard', async (c) => {
 
   // Redirect to sign-in if not authenticated
   if (!user) {
-    if (!isClerkConfigured(c)) {
-      return c.html(
-        <Layout title="Dashboard" user={null}>
-          <div class="page-section" style="max-width: 600px; margin: 0 auto; padding: 4rem 0; text-align: center;">
-            <h2>Dashboard</h2>
-            <p style="margin-top: 1rem; color: var(--text-secondary);">
-              Authentication is not yet configured. Check back soon.
-            </p>
-            <a href="/" style="margin-top: 2rem; display: inline-block; color: var(--accent);">← Back to Home</a>
-          </div>
-        </Layout>
-      )
-    }
     return c.redirect('/sign-in')
   }
 
@@ -74,7 +60,7 @@ dashboard.get('/dashboard', async (c) => {
     .get()
 
   return c.html(
-    <Layout title="Dashboard" user={user} clerkPubKey={c.env.CLERK_PUBLISHABLE_KEY}>
+    <Layout title="Dashboard" user={user}>
       <div class="page-section" style="max-width: 800px; margin: 0 auto;">
         <p class="section-label">Dashboard</p>
         <h2>Welcome back{user.name ? `, ${user.name.split(' ')[0]}` : ''}</h2>

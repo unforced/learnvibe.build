@@ -812,7 +812,7 @@ const TOOLS: ToolDef[] = [
   },
   {
     name: 'admin_send_email',
-    description: 'ADMIN: send a markdown email to an explicit list of email addresses. Use this to resend after a partial broadcast failure or for one-off targeted sends. Rate-limited internally to stay under Resend\'s 5/sec cap.',
+    description: 'ADMIN: send a markdown email to an explicit list of email addresses. Use this to resend after a partial broadcast failure or for one-off targeted sends. Rate-limited internally to stay under the email send rate limit.',
     adminOnly: true,
     inputSchema: {
       type: 'object',
@@ -869,81 +869,30 @@ const TOOLS: ToolDef[] = [
     },
   },
   {
-    name: 'admin_clerk_inspect',
-    description: 'ADMIN: look up Clerk user(s) by email. Returns the Clerk user record if one exists, plus any pending invitations, so admin can diagnose sign-up issues.',
-    adminOnly: true,
-    inputSchema: {
-      type: 'object',
-      properties: { email: { type: 'string' } },
-      required: ['email'],
-    },
-    handler: async (args, _user, _db, c) => {
-      const { createClerkClient } = await import('@clerk/backend')
-      const clerk = createClerkClient({ secretKey: c.env.CLERK_SECRET_KEY })
-      const userList = await clerk.users.getUserList({ emailAddress: [args.email] })
-      const invList = await clerk.invitations.getInvitationList({ status: 'pending' })
-      const matchingInvites = invList.data.filter((i: any) => i.emailAddress === args.email)
-      return textResult({
-        users: userList.data.map((u: any) => ({
-          id: u.id,
-          emailAddresses: u.emailAddresses.map((e: any) => ({ email: e.emailAddress, verified: e.verification?.status === 'verified' })),
-          createdAt: u.createdAt,
-          lastSignInAt: u.lastSignInAt,
-          hasVerifiedEmail: u.emailAddresses.some((e: any) => e.verification?.status === 'verified'),
-        })),
-        pendingInvitations: matchingInvites.map((i: any) => ({ id: i.id, status: i.status, url: i.url, createdAt: i.createdAt })),
-      })
-    },
-  },
-  {
-    name: 'admin_clerk_delete_user',
-    description: 'ADMIN: delete a Clerk user by ID. Destructive. Use to clear out a partial/stuck sign-up attempt so the email can be re-invited cleanly. Does NOT delete the user from our own users table — use admin_clerk_inspect first to confirm.',
-    adminOnly: true,
-    inputSchema: {
-      type: 'object',
-      properties: { clerkUserId: { type: 'string', description: 'Clerk user ID (starts with "user_").' } },
-      required: ['clerkUserId'],
-    },
-    handler: async (args, _user, _db, c) => {
-      const { createClerkClient } = await import('@clerk/backend')
-      const clerk = createClerkClient({ secretKey: c.env.CLERK_SECRET_KEY })
-      await clerk.users.deleteUser(args.clerkUserId)
-      return textResult({ ok: true, deleted: args.clerkUserId })
-    },
-  },
-  {
-    name: 'admin_clerk_invite',
-    description: 'ADMIN: send a Clerk invitation email to a specific address, bypassing the normal sign-up verification flow. Use when someone is stuck in the verification code loop — the invitation link pre-verifies their email so they skip the code step entirely. Returns the Clerk invitation ID and status.',
+    name: 'admin_send_magic_link',
+    description: 'ADMIN: email a fresh magic sign-in link to an address. Use to help someone who can\'t find their link or is stuck signing in — magic-link auth has no verification-code step, so this is usually all that\'s needed. Creates the user on first verify if they don\'t exist yet.',
     adminOnly: true,
     inputSchema: {
       type: 'object',
       properties: {
-        email: { type: 'string', description: 'Email to invite. Clerk sends the invitation automatically.' },
-        redirectUrl: { type: 'string', description: 'Where to land after accept. Defaults to https://learnvibe.build/dashboard.' },
+        email: { type: 'string', description: 'Email to send the sign-in link to.' },
+        redirectUrl: { type: 'string', description: 'Relative path to land on after sign-in. Defaults to /dashboard.' },
       },
       required: ['email'],
     },
-    handler: async (args, _user, _db, c) => {
-      const { createClerkClient } = await import('@clerk/backend')
-      const clerk = createClerkClient({ secretKey: c.env.CLERK_SECRET_KEY })
-      const redirect = args.redirectUrl || 'https://learnvibe.build/dashboard'
-      try {
-        const invitation = await clerk.invitations.createInvitation({
-          emailAddress: args.email,
-          redirectUrl: redirect,
-          notify: true,
-        })
-        return textResult({
-          ok: true,
-          id: invitation.id,
-          emailAddress: invitation.emailAddress,
-          status: invitation.status,
-          createdAt: invitation.createdAt,
-          note: 'Clerk emailed the invitation. User clicks link → pre-verified sign-up → autoEnrollOnSignup fires if they have a matching application.',
-        })
-      } catch (e: any) {
-        throw new Error(`Clerk invitation failed: ${e?.message || String(e)}`)
+    handler: async (args, _user, db, c) => {
+      const { createMagicToken } = await import('../lib/magic-link')
+      const { sendMagicLink } = await import('../lib/email')
+      const email = String(args.email || '').trim().toLowerCase()
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        throw new Error('Invalid email address')
       }
+      const redirectTo = typeof args.redirectUrl === 'string' && args.redirectUrl.startsWith('/') && !args.redirectUrl.startsWith('//')
+        ? args.redirectUrl : '/dashboard'
+      const token = await createMagicToken(db, { email, redirectTo })
+      const link = `https://learnvibe.build/auth/verify?token=${encodeURIComponent(token)}`
+      await sendMagicLink(c.env, email, link)
+      return textResult({ ok: true, email, note: 'Magic sign-in link emailed. Single-use, expires in 20 minutes.' })
     },
   },
 ]

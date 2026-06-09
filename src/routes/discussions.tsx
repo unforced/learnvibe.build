@@ -22,7 +22,7 @@ discussionRoutes.get('/cohort/:slug/discussions', async (c) => {
   const cohort = await db.select().from(cohorts).where(eq(cohorts.slug, slug)).get()
   if (!cohort) {
     return c.html(
-      <Layout title="Not Found" user={user} clerkPubKey={c.env.CLERK_PUBLISHABLE_KEY}>
+      <Layout title="Not Found" user={user}>
         <div class="page-section" style="text-align: center; padding: 6rem 0;">
           <h2>Cohort not found</h2>
           <p><a href="/">← Back to homepage</a></p>
@@ -64,7 +64,7 @@ discussionRoutes.get('/cohort/:slug/discussions', async (c) => {
   }
 
   return c.html(
-    <Layout title={`Discussions — ${cohort.title}`} user={user} clerkPubKey={c.env.CLERK_PUBLISHABLE_KEY}>
+    <Layout title={`Discussions — ${cohort.title}`} user={user}>
       <div class="page-section">
         <a href={`/cohort/${slug}`} class="back-link">← {cohort.title}</a>
 
@@ -132,7 +132,7 @@ discussionRoutes.get('/cohort/:slug/discussions/new', async (c) => {
   const lessonIdParam = c.req.query('lesson_id')
 
   return c.html(
-    <Layout title={`New Discussion — ${cohort.title}`} user={user} clerkPubKey={c.env.CLERK_PUBLISHABLE_KEY}>
+    <Layout title={`New Discussion — ${cohort.title}`} user={user}>
       <div class="page-section" style="max-width: 600px; margin: 0 auto;">
         <a href={`/cohort/${slug}/discussions`} class="back-link">← Discussions</a>
 
@@ -221,7 +221,7 @@ discussionRoutes.get('/cohort/:slug/discussions/:id', async (c) => {
 
   if (!result) {
     return c.html(
-      <Layout title="Discussion Not Found" user={user} clerkPubKey={c.env.CLERK_PUBLISHABLE_KEY}>
+      <Layout title="Discussion Not Found" user={user}>
         <div class="page-section" style="text-align: center; padding: 6rem 0;">
           <h2>Discussion not found</h2>
           <p><a href={`/cohort/${slug}/discussions`}>← Back to Discussions</a></p>
@@ -257,7 +257,7 @@ discussionRoutes.get('/cohort/:slug/discussions/:id', async (c) => {
   })
 
   return c.html(
-    <Layout title={discussion.title} user={user} clerkPubKey={c.env.CLERK_PUBLISHABLE_KEY}>
+    <Layout title={discussion.title} user={user}>
       <div class="page-section" style="max-width: 700px; margin: 0 auto;">
         <a href={`/cohort/${slug}/discussions`} class="back-link">← Discussions</a>
 
@@ -370,7 +370,7 @@ discussionRoutes.get('/community/discussions', async (c) => {
   }
 
   return c.html(
-    <Layout title="Community Discussions" user={user} clerkPubKey={c.env.CLERK_PUBLISHABLE_KEY}>
+    <Layout title="Community Discussions" user={user}>
       <div class="page-section">
         <a href="/community" class="back-link">← Community</a>
 
@@ -423,7 +423,7 @@ discussionRoutes.get('/community/discussions/new', async (c) => {
   const error = c.req.query('error')
 
   return c.html(
-    <Layout title="New Discussion" user={user} clerkPubKey={c.env.CLERK_PUBLISHABLE_KEY}>
+    <Layout title="New Discussion" user={user}>
       <div class="page-section" style="max-width: 600px; margin: 0 auto;">
         <a href="/community/discussions" class="back-link">← Discussions</a>
 
@@ -497,7 +497,7 @@ discussionRoutes.get('/community/discussions/:id', async (c) => {
 
   if (!result) {
     return c.html(
-      <Layout title="Discussion Not Found" user={user} clerkPubKey={c.env.CLERK_PUBLISHABLE_KEY}>
+      <Layout title="Discussion Not Found" user={user}>
         <div class="page-section" style="text-align: center; padding: 6rem 0;">
           <h2>Discussion not found</h2>
           <p><a href="/community/discussions">← Back to Discussions</a></p>
@@ -531,7 +531,7 @@ discussionRoutes.get('/community/discussions/:id', async (c) => {
   })
 
   return c.html(
-    <Layout title={discussion.title} user={user} clerkPubKey={c.env.CLERK_PUBLISHABLE_KEY}>
+    <Layout title={discussion.title} user={user}>
       <div class="page-section" style="max-width: 700px; margin: 0 auto;">
         <a href="/community/discussions" class="back-link">← Discussions</a>
 

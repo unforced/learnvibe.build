@@ -1,136 +1,152 @@
 import { Context } from 'hono'
-import { getAuth } from '@hono/clerk-auth'
-import { eq, and, ne, isNull, sql } from 'drizzle-orm'
+import { eq, and, ne, isNull, sql, desc } from 'drizzle-orm'
 import { getDb } from '../db'
-import { users, enrollments, memberships, interests } from '../db/schema'
+import { users, enrollments, memberships, interests, cohorts } from '../db/schema'
+import { getSessionUserId } from './session'
+import type { EmailEnv } from './email'
 import type { AppContext } from '../types'
 
 export type AuthUser = {
   id: number
+  /** External auth id. For legacy Clerk accounts this is the Clerk user id;
+   *  for magic-link accounts it's a synthetic `magic_<token>`. Auth keys on
+   *  `id` (carried in the session cookie), not this — it only exists to
+   *  satisfy the column's NOT NULL UNIQUE constraint. */
   clerkId: string
   email: string
   name: string | null
   role: string
   isEnrolled: boolean
+  /** Slug of the user's most recent / current cohort enrollment, used to
+   *  drive nav links to /cohort/:slug. NULL for users with no enrollment
+   *  (admin/facilitator without a cohort, or users with only a community
+   *  membership). Most-recent enrollment wins when multiple exist. */
+  primaryCohortSlug?: string | null
 }
 
 /**
- * Get the authenticated user from the request context.
- * Returns null if not authenticated or Clerk is not configured.
+ * Get the authenticated user from the signed session cookie.
+ * Returns null if not signed in.
  */
 export async function getUser(c: Context<AppContext>): Promise<AuthUser | null> {
   try {
-    const auth = getAuth(c)
-    if (!auth?.userId) return null
+    const userId = await getSessionUserId(c)
+    if (!userId) return null
 
     const db = getDb(c.env.DB)
     const user = await db
       .select()
       .from(users)
-      .where(eq(users.clerkId, auth.userId))
+      .where(eq(users.id, userId))
       .get()
 
     if (!user) return null
+    // Soft-deleted accounts can't authenticate.
+    if (user.role === 'deleted') return null
 
-    // Check enrollment status for nav display
+    // Check enrollment status for nav display + look up the user's most
+    // recent enrollment's cohort slug so Layout can route to the right
+    // /cohort/:slug. Newest enrollment wins when the user has multiple.
     let isEnrolled = false
+    let primaryCohortSlug: string | null = null
+
+    const enrollment = await db
+      .select({ cohortSlug: cohorts.slug })
+      .from(enrollments)
+      .innerJoin(cohorts, eq(cohorts.id, enrollments.cohortId))
+      .where(
+        and(
+          eq(enrollments.userId, user.id),
+          ne(enrollments.status, 'dropped')
+        )
+      )
+      .orderBy(desc(enrollments.enrolledAt))
+      .get()
+
+    if (enrollment) {
+      isEnrolled = true
+      primaryCohortSlug = enrollment.cohortSlug
+    }
+
     if (user.role === 'admin' || user.role === 'facilitator') {
       isEnrolled = true
-    } else {
-      const enrollment = await db
+    } else if (!enrollment) {
+      const membership = await db
         .select()
-        .from(enrollments)
+        .from(memberships)
         .where(
           and(
-            eq(enrollments.userId, user.id),
-            ne(enrollments.status, 'dropped')
+            eq(memberships.userId, user.id),
+            eq(memberships.status, 'active')
           )
         )
         .get()
 
-      if (enrollment) {
-        isEnrolled = true
-      } else {
-        const membership = await db
-          .select()
-          .from(memberships)
-          .where(
-            and(
-              eq(memberships.userId, user.id),
-              eq(memberships.status, 'active')
-            )
-          )
-          .get()
-
-        if (membership) isEnrolled = true
-      }
+      if (membership) isEnrolled = true
     }
 
-    return { ...user, isEnrolled }
+    return { ...user, isEnrolled, primaryCohortSlug }
   } catch {
-    // Clerk not configured or error — return null
     return null
   }
 }
 
 /**
- * Sync a Clerk user to the D1 users table.
- * Creates the user if they don't exist, updates if they do.
+ * Find a user by email, or create one. Replaces the old Clerk `syncUser`.
+ * Keyed on email (the natural identity for magic-link auth). On creation,
+ * runs the same first-signup side effects Clerk's webhook used to: auto-
+ * enroll any approved sponsored applications, link userId on paid ones, and
+ * back-link interest-list rows.
+ *
+ * New accounts get a synthetic `clerk_id` (`magic_<token>`) to satisfy the
+ * NOT NULL UNIQUE column without a table rebuild — see migration 0025.
  */
-export async function syncUser(
-  c: Context<AppContext>,
-  clerkId: string,
-  email: string,
-  name?: string | null
-): Promise<AuthUser> {
-  const db = getDb(c.env.DB)
+export async function findOrCreateUser(
+  db: ReturnType<typeof getDb>,
+  env: EmailEnv,
+  args: { email: string; name?: string | null },
+): Promise<{ user: typeof users.$inferSelect; isNew: boolean }> {
+  const email = args.email.trim().toLowerCase()
+  const name = args.name?.trim() || null
 
-  const existing = await db
-    .select()
-    .from(users)
-    .where(eq(users.clerkId, clerkId))
-    .get()
-
+  const existing = await db.select().from(users).where(eq(users.email, email)).get()
   if (existing) {
-    // Update email/name if changed
-    if (existing.email !== email || existing.name !== (name || null)) {
-      await db
-        .update(users)
-        .set({ email, name: name || null })
-        .where(eq(users.clerkId, clerkId))
+    // Fill in a name we didn't have, but never overwrite one the user set.
+    if (name && !existing.name) {
+      await db.update(users).set({ name }).where(eq(users.id, existing.id))
+      existing.name = name
     }
-    return { ...existing, isEnrolled: false }
+    // Reactivate a soft-deleted account on successful sign-in.
+    if (existing.role === 'deleted') {
+      await db.update(users).set({ role: 'student' }).where(eq(users.id, existing.id))
+      existing.role = 'student'
+    }
+    return { user: existing, isNew: false }
   }
 
-  // Create new user
+  const syntheticAuthId = `magic_${generateToken()}`
   const result = await db
     .insert(users)
     .values({
-      clerkId,
+      clerkId: syntheticAuthId,
       email,
-      name: name || null,
+      name,
       role: 'student',
     })
     .returning()
-
   const newUser = result[0]
 
-  // If this user has any approved sponsored applications waiting,
-  // enroll them now and send the welcome email. Also links userId on
-  // any other approved (paid) applications so Stripe can find them.
-  // Loaded lazily to avoid a circular import (enrollment ↔ email).
+  // First-signup side effects. Loaded lazily to avoid a circular import
+  // (auth → enrollment → email → …). Non-fatal — log and continue.
   try {
     const { autoEnrollOnSignup } = await import('./enrollment')
-    await autoEnrollOnSignup(db, c.env, { id: newUser.id, email: newUser.email })
+    await autoEnrollOnSignup(db, env, { id: newUser.id, email: newUser.email })
   } catch (e) {
-    // Non-fatal — log and continue. The Clerk webhook also fires this.
     console.error('autoEnrollOnSignup failed (non-fatal):', e)
   }
 
-  // Best-effort: link any unlinked interests row matching this email to
-  // the new user. Treats interest-list signup as the first step of the
-  // funnel (interest → signup → application → enrollment) — see #44.
-  // Failure is non-fatal; admin can resync via direct D1 update.
+  // Back-link any unlinked interest-list rows for this email (funnel
+  // continuity — interest → signup → application → enrollment, see #44).
   try {
     await db
       .update(interests)
@@ -143,7 +159,7 @@ export async function syncUser(
     console.error('interests-link on signup failed (non-fatal):', e)
   }
 
-  return { ...newUser, isEnrolled: false }
+  return { user: newUser, isNew: true }
 }
 
 /**
@@ -152,15 +168,6 @@ export async function syncUser(
 export function isAdmin(user: AuthUser | null): boolean {
   if (!user) return false
   return user.role === 'admin' || user.role === 'facilitator'
-}
-
-/**
- * Check if Clerk is properly configured (not using placeholder keys).
- */
-export function isClerkConfigured(c: Context<AppContext>): boolean {
-  const pubKey = c.env.CLERK_PUBLISHABLE_KEY
-  const secKey = c.env.CLERK_SECRET_KEY
-  return !!(pubKey && secKey && !pubKey.includes('placeholder') && !secKey.includes('placeholder'))
 }
 
 /**

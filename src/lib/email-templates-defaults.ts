@@ -24,44 +24,44 @@ export interface EmailTemplateDefault {
 export const DEFAULT_TEMPLATES: Record<string, EmailTemplateDefault> = {
   application_received: {
     subject: 'Application received — Learn Vibe Build',
-    variables: ['firstName'],
+    variables: ['firstName', 'cohortTitle'],
     bodyMarkdown: `<h2>Thanks for applying, {{firstName}}</h2>
-<p>We've received your application for Cohort 1. We'll review it and get back to you soon — typically within a few days.</p>
+<p>We've received your application for {{cohortTitle}}. We'll review it and get back to you soon — typically within a few days.</p>
 <p>You can check your application status anytime from <a href="https://learnvibe.build/dashboard" style="color: #e8612a; text-decoration: none;">your dashboard</a>.</p>
 <hr class="email-divider">
 <p class="email-muted">Questions? Reply to this email or reach out at ag@unforced.dev.</p>`,
   },
 
   application_approved: {
-    subject: "You're approved! — Learn Vibe Build Cohort 1",
-    variables: ['firstName', 'tierLabel', 'amountFormatted', 'paymentUrl'],
+    subject: "You're approved! — Learn Vibe Build {{cohortTitle}}",
+    variables: ['firstName', 'tierLabel', 'amountFormatted', 'paymentUrl', 'cohortTitle'],
     bodyMarkdown: `<h2>You're in, {{firstName}}!</h2>
-<p>Your application for Cohort 1 has been approved. We're excited to have you.</p>
+<p>Your application for {{cohortTitle}} has been approved. We're excited to have you.</p>
 <div class="email-highlight">
   <p><strong>{{tierLabel}}</strong> — {{amountFormatted}}</p>
 </div>
 <p>Complete your payment to secure your spot:</p>
 <a href="{{paymentUrl}}" class="email-cta">Pay {{amountFormatted}} & Enroll →</a>
 <hr class="email-divider">
-<p class="email-muted">If you haven't yet, also <a href="https://learnvibe.build/sign-up" style="color: #e8612a; text-decoration: none;">create your account</a> using <strong>this same email address</strong> — that way you can access the cohort site as soon as you're enrolled. The course starts in April 2026; we'll send more details as we get closer. Questions? Just reply.</p>`,
+<p class="email-muted">If you haven't yet, also <a href="https://learnvibe.build/sign-up" style="color: #e8612a; text-decoration: none;">create your account</a> using <strong>this same email address</strong> — that way you can access the cohort site as soon as you're enrolled. We'll send more details as we get closer to the start. Questions? Just reply.</p>`,
   },
 
   application_approved_sponsored: {
-    subject: "You're in! — Learn Vibe Build Cohort 1",
-    variables: ['firstName', 'paymentUrl'],
+    subject: "You're in! — Learn Vibe Build {{cohortTitle}}",
+    variables: ['firstName', 'paymentUrl', 'cohortTitle'],
     bodyMarkdown: `<h2>Welcome, {{firstName}}!</h2>
-<p>Great news — your application for Cohort 1 has been approved, and your spot has been sponsored. No payment needed.</p>
+<p>Great news — your application for {{cohortTitle}} has been approved, and your spot has been sponsored. No payment needed.</p>
 <p>Complete your enrollment to get started:</p>
 <a href="{{paymentUrl}}" class="email-cta">Complete Enrollment →</a>
 <hr class="email-divider">
-<p class="email-muted">The course starts in April 2026. We'll send you details as we get closer. In the meantime, feel free to reply with any questions.</p>`,
+<p class="email-muted">We'll send you details as we get closer to the start. In the meantime, feel free to reply with any questions.</p>`,
   },
 
   application_rejected: {
     subject: 'Update on your application — Learn Vibe Build',
-    variables: ['firstName'],
+    variables: ['firstName', 'cohortTitle'],
     bodyMarkdown: `<h2>Hi {{firstName}},</h2>
-<p>Thank you for applying to Learn Vibe Build Cohort 1. After careful consideration, we weren't able to offer you a spot in this cohort.</p>
+<p>Thank you for applying to Learn Vibe Build {{cohortTitle}}. After careful consideration, we weren't able to offer you a spot in this cohort.</p>
 <p>This isn't a reflection of your potential — our cohorts are small and we can only take a limited number of participants each round.</p>
 <p>We'd love to see you apply again for a future cohort. We're always expanding what we offer, and there may be a better fit down the road.</p>
 <hr class="email-divider">
@@ -69,10 +69,10 @@ export const DEFAULT_TEMPLATES: Record<string, EmailTemplateDefault> = {
   },
 
   application_price_changed: {
-    subject: 'Your Cohort 1 pricing has been updated — Learn Vibe Build',
-    variables: ['firstName', 'tierLabel', 'oldAmountFormatted', 'newAmountFormatted', 'paymentUrl'],
+    subject: 'Your {{cohortTitle}} pricing has been updated — Learn Vibe Build',
+    variables: ['firstName', 'tierLabel', 'oldAmountFormatted', 'newAmountFormatted', 'paymentUrl', 'cohortTitle'],
     bodyMarkdown: `<h2>Hi {{firstName}},</h2>
-<p>We've updated the pricing on your Cohort 1 enrollment.</p>
+<p>We've updated the pricing on your {{cohortTitle}} enrollment.</p>
 <div class="email-highlight">
   <p><strong>New price:</strong> {{tierLabel}} — {{newAmountFormatted}}<br>
   <span style="color: #6b7280; font-size: 0.9em;">(was {{oldAmountFormatted}})</span></p>
@@ -84,10 +84,10 @@ export const DEFAULT_TEMPLATES: Record<string, EmailTemplateDefault> = {
   },
 
   application_price_changed_sponsored: {
-    subject: 'Your Cohort 1 spot is now sponsored — Learn Vibe Build',
-    variables: ['firstName', 'paymentUrl'],
+    subject: 'Your {{cohortTitle}} spot is now sponsored — Learn Vibe Build',
+    variables: ['firstName', 'paymentUrl', 'cohortTitle'],
     bodyMarkdown: `<h2>Good news, {{firstName}}!</h2>
-<p>We've updated your enrollment — your spot in Cohort 1 is now <strong>sponsored</strong>. No payment required.</p>
+<p>We've updated your enrollment — your spot in {{cohortTitle}} is now <strong>sponsored</strong>. No payment required.</p>
 <p>Complete your enrollment to get started:</p>
 <a href="{{paymentUrl}}" class="email-cta">Complete Enrollment →</a>
 <hr class="email-divider">
@@ -111,7 +111,7 @@ export const DEFAULT_TEMPLATES: Record<string, EmailTemplateDefault> = {
     subject: 'On the list — Learn Vibe Build',
     variables: [],
     bodyMarkdown: `<h2>Thanks for joining the list —</h2>
-<p>You're on the Learn Vibe Build interest list. Cohort 1 is in flight right now, and Cohort 2 is forming as we learn from this run. We'll be in touch as the dates and shape come into focus.</p>
+<p>You're on the Learn Vibe Build interest list. We run cohorts a few times a year, and we'll be in touch as new dates and shapes come into focus. Applications are open intermittently &mdash; check <a href="https://learnvibe.build" style="color: #e8612a; text-decoration: none;">learnvibe.build</a> for what's current.</p>
 <div class="email-highlight">
   <p style="margin: 0 0 0.5rem 0;"><strong>While you wait:</strong></p>
   <p style="margin: 0;">If you've got something you're trying to make with AI right now, reply to this email and tell us about it. We love hearing what people are working on, and the cohort design is shaped by what we learn from those conversations.</p>
@@ -133,6 +133,48 @@ export const DEFAULT_TEMPLATES: Record<string, EmailTemplateDefault> = {
 <hr class="email-divider">
 <p class="email-muted">Questions? Just reply to this email.</p>`,
   },
+
+  magic_link: {
+    subject: 'Your Learn Vibe Build sign-in link',
+    variables: ['magicLink'],
+    bodyMarkdown: `<h2>Your sign-in link</h2>
+<p>Welcome back to Learn Vibe Build. Tap the button below to sign in — no password required.</p>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 28px 0;"><tr><td align="center">
+<a href="{{magicLink}}" style="display:inline-block; background:#e8612a; color:#ffffff !important; font-size:16px; font-weight:600; padding:14px 38px; border-radius:10px; text-decoration:none; box-shadow:0 2px 8px rgba(232,97,42,0.28);">Sign in to Learn Vibe Build &rarr;</a>
+</td></tr></table>
+<p class="email-muted" style="text-align:center;">This link expires in 20 minutes and works only once.</p>
+<hr class="email-divider">
+<p class="email-muted" style="margin-bottom:8px;">Button not working? Paste this link into your browser:</p>
+<p style="background:#f6f5f2; border:1px solid #e5e2db; border-radius:8px; padding:12px 14px; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:12px; color:#555; word-break:break-all; margin:0;">{{magicLink}}</p>
+<hr class="email-divider">
+<p class="email-muted">Didn't request this? You can safely ignore this email — no one can sign in unless they open the link, and it expires shortly.</p>`,
+  },
+
+  email_change: {
+    subject: 'Confirm your new Learn Vibe Build email',
+    variables: ['confirmLink'],
+    bodyMarkdown: `<h2>Confirm your new email</h2>
+<p>Someone (hopefully you) asked to use this address for a Learn Vibe Build account. Confirm to make it your new sign-in email.</p>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 28px 0;"><tr><td align="center">
+<a href="{{confirmLink}}" style="display:inline-block; background:#e8612a; color:#ffffff !important; font-size:16px; font-weight:600; padding:14px 38px; border-radius:10px; text-decoration:none; box-shadow:0 2px 8px rgba(232,97,42,0.28);">Confirm this email &rarr;</a>
+</td></tr></table>
+<p class="email-muted" style="text-align:center;">This link expires in 1 hour and works only once. You'll also need to be signed in to that account to finish.</p>
+<hr class="email-divider">
+<p class="email-muted" style="margin-bottom:8px;">Button not working? Paste this link into your browser:</p>
+<p style="background:#f6f5f2; border:1px solid #e5e2db; border-radius:8px; padding:12px 14px; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:12px; color:#555; word-break:break-all; margin:0;">{{confirmLink}}</p>
+<hr class="email-divider">
+<p class="email-muted">Didn't request this? You can safely ignore this email — nothing changes unless you confirm while signed in.</p>`,
+  },
+
+  email_changed_notice: {
+    subject: 'Your Learn Vibe Build sign-in email was changed',
+    variables: ['newEmail'],
+    bodyMarkdown: `<h2>Your sign-in email was changed</h2>
+<p>The email for your Learn Vibe Build account was just changed to <strong>{{newEmail}}</strong>. You'll use that address to sign in from now on.</p>
+<p>If you made this change, you're all set — no action needed.</p>
+<hr class="email-divider">
+<p class="email-muted">If this <strong>wasn't</strong> you, reply to this email right away and we'll help you secure your account.</p>`,
+  },
 }
 
 /** Stable list of template keys, in display order for the admin templates page. */
@@ -146,6 +188,9 @@ export const TEMPLATE_KEYS: ReadonlyArray<keyof typeof DEFAULT_TEMPLATES> = [
   'enrollment_confirmed_no_account',
   'enrollment_confirmed_has_account',
   'interest_received',
+  'magic_link',
+  'email_change',
+  'email_changed_notice',
 ]
 
 /** Human-readable labels for each template key — used by admin UI. */
@@ -159,6 +204,9 @@ export const TEMPLATE_LABELS: Record<string, string> = {
   enrollment_confirmed_no_account: 'Enrollment confirmed — no account yet',
   enrollment_confirmed_has_account: 'Enrollment confirmed — account exists',
   interest_received: 'Interest list — confirmation',
+  magic_link: 'Magic-link sign-in',
+  email_change: 'Email change — confirm new address',
+  email_changed_notice: 'Email change — notice to old address',
   // Logged template keys that don't have an editable template here — used
   // for label-only purposes on the email log table.
   broadcast: 'Broadcast',

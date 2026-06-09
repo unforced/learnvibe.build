@@ -2,25 +2,28 @@ import { Hono } from 'hono'
 import { eq, and } from 'drizzle-orm'
 import { applications, lessons, feedback, users, projects, lessonProgress, discussions, comments, apiKeys, oauthTokens, artifacts, cohorts, enrollments, memberships } from '../db/schema'
 import { getDb } from '../db'
-import { isAdmin } from '../lib/auth'
+import { isAdmin, generateToken } from '../lib/auth'
 import { generateApiKey, hashApiKey, getKeyPrefix } from '../lib/api-auth'
 import { sendApplicationReceived } from '../lib/email'
+import { TIERS_BY_COHORT, PRICING_TIERS } from '../lib/stripe'
+import { getCohortCapacity } from '../lib/access'
 import type { AppContext } from '../types'
 
 const api = new Hono<AppContext>()
 
 // ===== PUBLIC: Application submission =====
 api.post('/api/applications', async (c) => {
-  // Auth-required as of #25 — applying creates an applications row linked
+  // Auth-required as of #25 — signup creates an applications row linked
   // to the signed-in user from the start. Anonymous submissions are
-  // rejected (the GET /apply handler routes unauthed visitors through
-  // /sign-up?redirect_url=/apply, so this is mostly a defensive guard).
+  // rejected (the GET /enroll handler routes unauthed visitors through
+  // /sign-up?redirect_url=/enroll, so this is mostly a defensive guard).
   const user = c.get('user')
   if (!user) {
-    return c.redirect('/sign-up?redirect_url=/apply')
+    return c.redirect('/sign-up?redirect_url=/enroll')
   }
 
   const body = await c.req.parseBody()
+  const db = getDb(c.env.DB)
 
   const name = String(body.name || '').trim() || user.name || ''
   // Email comes from the authenticated session, NOT from the form. The
@@ -31,19 +34,28 @@ api.post('/api/applications', async (c) => {
   const background = String(body.background || '').trim()
   const projectInterest = String(body.project_interest || '').trim()
   const referralSource = String(body.referral_source || '').trim()
-  const contribution = String(body.contribution || 'full').trim()
+  const referredBy = String(body.referred_by || '').trim() || null
+  // Tier model (Summer 2026+): applicant self-selects sliding_low/mid/high
+  // or scholarship. Alumni tier is server-applied if we detect a prior
+  // enrollment — we don't trust the form for that. For backward compat
+  // with the old pay-what-you-can form, `contribution` is still accepted
+  // and gets mapped onto the legacy fields.
+  const pricingTierRaw = String(body.pricing_tier || '').trim()
+  const scholarshipRequest = String(body.scholarship_request || '').trim() || null
+  // Legacy fields — kept so older deployed forms still post cleanly
+  const contribution = String(body.contribution || '').trim()
   const requestedAmountRaw = String(body.requested_amount || '').trim()
   const requestedReason = String(body.requested_reason || '').trim() || null
 
   // Validate required fields
   if (!name || !email || !background || !projectInterest || !referralSource) {
-    return c.redirect('/apply?error=missing_fields')
+    return c.redirect('/enroll?error=missing_fields')
   }
 
   // Basic RFC-5322-adjacent check — catches "@." and common typos. Should
   // never fail since email comes from Clerk, but defensive.
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return c.redirect('/apply?error=invalid_email')
+    return c.redirect('/enroll?error=invalid_email')
   }
 
   // Length bounds — generous but not unlimited, to prevent payload abuse.
@@ -53,59 +65,137 @@ api.post('/api/applications', async (c) => {
     background.length > 5000 ||
     projectInterest.length > 5000 ||
     referralSource.length > 500 ||
+    (referredBy && referredBy.length > 200) ||
+    (scholarshipRequest && scholarshipRequest.length > 3000) ||
     (requestedReason && requestedReason.length > 2000)
   ) {
-    return c.redirect('/apply?error=too_long')
-  }
-
-  // Pay-what-you-can: record the applicant's chosen contribution.
-  // "full" → they confirmed $500. "pwyc" → parse + clamp their custom amount.
-  let requestedAmountCents: number | null = null
-  if (contribution === 'pwyc') {
-    const dollars = parseInt(requestedAmountRaw || '0', 10)
-    if (Number.isNaN(dollars) || dollars < 0 || dollars > 500) {
-      return c.redirect('/apply?error=invalid_amount')
-    }
-    requestedAmountCents = dollars * 100
-  } else if (contribution === 'full') {
-    requestedAmountCents = 50000
+    return c.redirect('/enroll?error=too_long')
   }
 
   try {
-    const db = getDb(c.env.DB)
+    // Detect the currently-enrolling cohort. Apply form ought to have
+    // guarded on this already (the /apply GET handler renders an "apps
+    // closed" state when no cohort is enrolling) but defensive here.
+    const enrollingCohort = await db.select({ slug: cohorts.slug, id: cohorts.id, title: cohorts.title })
+      .from(cohorts)
+      .where(eq(cohorts.status, 'enrolling'))
+      .get()
+    const cohortSlug = enrollingCohort?.slug ?? 'cohort-2'
+    const cohortTitle = enrollingCohort?.title ?? 'the next cohort'
 
-    // Check for existing application with this email
+    // Check for existing application with this email — they already signed
+    // up, so send them to their dashboard where status (pending / approved
+    // / enrolled) and any payment link surface.
     const existing = await db.select({ id: applications.id })
       .from(applications)
       .where(eq(applications.email, email.toLowerCase()))
       .get()
 
     if (existing) {
-      return c.redirect('/apply/status')
+      return c.redirect('/dashboard')
     }
 
-    await db.insert(applications).values({
+    // Alumni detection — if this user has any prior enrollment, they may
+    // pick the alumni tier on the form. Server enforces (form-claimed
+    // alumni tier without prior enrollment is rejected).
+    let isAlumni = false
+    if (enrollingCohort) {
+      const userEnrollments = await db.select({ cohortId: enrollments.cohortId })
+        .from(enrollments)
+        .where(eq(enrollments.userId, user.id))
+        .all()
+      isAlumni = userEnrollments.some(e => e.cohortId !== enrollingCohort.id)
+    }
+
+    // Resolve pricing tier. Form must post a known tier for the cohort.
+    let pricingTier = 'pending'
+    let requestedAmountCents: number | null = null
+    let requestedAmountReason: string | null = null
+
+    if (pricingTierRaw) {
+      const allowed = TIERS_BY_COHORT[cohortSlug] ?? []
+      if (!allowed.includes(pricingTierRaw)) {
+        return c.redirect('/enroll?error=invalid_amount')
+      }
+      if (pricingTierRaw === 'alumni' && !isAlumni) {
+        return c.redirect('/enroll?error=invalid_amount')
+      }
+      if (pricingTierRaw === 'scholarship' && !scholarshipRequest) {
+        return c.redirect('/enroll?error=missing_fields')
+      }
+      pricingTier = pricingTierRaw
+      requestedAmountCents = PRICING_TIERS[pricingTierRaw]?.amountCents ?? null
+    } else if (contribution === 'pwyc') {
+      // Legacy pay-what-you-can path — preserved so an older cached form
+      // still submits cleanly. Maps onto the requestedAmountCents fields.
+      const dollars = parseInt(requestedAmountRaw || '0', 10)
+      if (Number.isNaN(dollars) || dollars < 0 || dollars > 750) {
+        return c.redirect('/enroll?error=invalid_amount')
+      }
+      requestedAmountCents = dollars * 100
+      requestedAmountReason = requestedReason
+    } else if (contribution === 'full') {
+      requestedAmountCents = 50000
+    }
+
+    // Branch: scholarship stays as an application (admin reviews limited
+    // slots). Sliding-scale and alumni go direct — no admin review — into
+    // immediate Stripe checkout. Cap enforcement only applies to the
+    // direct path; scholarship 'pending' apps don't claim a seat yet.
+    const isScholarship = pricingTier === 'scholarship'
+    const isDirectEnrollment = pricingTier !== 'pending' && !isScholarship
+
+    if (isDirectEnrollment && enrollingCohort) {
+      const capacity = await getCohortCapacity(c.env.DB, cohortSlug)
+      if (capacity.isFull) {
+        return c.redirect('/enroll?error=cohort_full')
+      }
+    }
+
+    // Direct enrollment path: pre-approve so the form submit lands the
+    // applicant straight at Stripe checkout. paymentToken gates the
+    // checkout URL so it can't be guessed.
+    const paymentToken = isDirectEnrollment ? generateToken() : null
+    const initialStatus = isDirectEnrollment ? 'approved' : 'pending'
+    const approvedAmountCents = isDirectEnrollment ? requestedAmountCents : null
+    const approvedAt = isDirectEnrollment ? new Date().toISOString() : null
+
+    const insertResult = await db.insert(applications).values({
       name,
       email: email.toLowerCase(),
       userId: user.id,
       background,
       projectInterest,
       referralSource,
-      cohortSlug: 'cohort-1',
-      pricingTier: 'pending',
+      referredBy,
+      scholarshipRequest,
+      cohortSlug,
+      pricingTier,
       requestedAmountCents,
-      requestedAmountReason: requestedAmountCents != null ? requestedReason : null,
-    })
+      requestedAmountReason,
+      status: initialStatus,
+      approvedAmountCents,
+      approvedAt,
+      paymentToken,
+    }).returning({ id: applications.id })
+
+    const applicationId = insertResult[0]?.id
 
     // Send confirmation email (non-blocking — don't fail the request if email fails)
     c.executionCtx.waitUntil(
-      sendApplicationReceived(c.env, email, name)
+      sendApplicationReceived(c.env, email, name, cohortTitle)
     )
 
-    return c.redirect('/apply/success')
+    // Sliding-scale + alumni: straight to Stripe. Scholarship: success page
+    // explaining we'll review and get back to them.
+    if (isDirectEnrollment && applicationId && paymentToken) {
+      return c.redirect(`/payment/checkout/${applicationId}?t=${paymentToken}`)
+    }
+
+    return c.redirect('/enroll/success')
   } catch (error) {
     console.error('Failed to save application:', error)
-    return c.redirect('/apply?error=server_error')
+    return c.redirect('/enroll?error=server_error')
   }
 })
 
@@ -205,10 +295,19 @@ api.post('/api/admin/lessons/:id', async (c) => {
 
 // ===== PUBLIC: Feedback submission =====
 api.post('/api/feedback', async (c) => {
+  const user = c.get('user')
+  // Sign-in required (matches the gated /feedback GET). Defensive guard.
+  if (!user) {
+    return c.redirect('/sign-in?redirect_url=/feedback')
+  }
+
   const body = await c.req.parseBody()
 
-  const name = String(body.name || '').trim()
-  const email = String(body.email || '').trim()
+  // Identity comes from the session, never the form.
+  const name = user.name || user.email
+  const email = user.email
+  const userId = user.id
+
   const cohortSlug = String(body.cohort_slug || '').trim() || null
   const ratingStr = String(body.rating || '').trim()
   const rating = ratingStr ? parseInt(ratingStr, 10) : null
@@ -220,6 +319,8 @@ api.post('/api/feedback', async (c) => {
   const canFeature = ['1', '2', '3'].includes(canFeatureStr) ? parseInt(canFeatureStr, 10) : 0
   const website = String(body.website || '').trim() || null
 
+  // Need identity (name+email — always present for signed-in) and at least
+  // one substantive field.
   if (!name || !email || (!highlight && !testimonial && !improvement)) {
     return c.redirect('/feedback?error=missing_fields')
   }
@@ -236,6 +337,7 @@ api.post('/api/feedback', async (c) => {
       improvement,
       canFeature,
       website,
+      userId,
     })
 
     return c.redirect('/feedback?submitted=true')
