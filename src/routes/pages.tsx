@@ -207,6 +207,8 @@ const CU_COURSE = {
   title: 'Learn Vibe Build',
   catalogTitle: 'Advanced Special Topics: Learn, Vibe, Build',
   sectionTitle: 'Learn, Vibe, Build',
+  section: '005',
+  classNbr: '39152',
   credits: '3 credits',
   meets: 'Wednesdays · 5:05–7:35 PM',
   location: 'ATLAS room 104, CU Boulder',
@@ -504,6 +506,7 @@ pages.get('/cu', (c) => {
             <h3>The details</h3>
             <dl class="cu-facts">
               <div class="cu-fact"><dt>Course</dt><dd>{cu.code} <span style="font-weight:400;color:var(--text-tertiary)">(cross-listed)</span></dd></div>
+              <div class="cu-fact"><dt>Section / Class #</dt><dd>Section {cu.section} &middot; #{cu.classNbr}</dd></div>
               <div class="cu-fact"><dt>Catalog title</dt><dd>{cu.catalogTitle}</dd></div>
               <div class="cu-fact"><dt>Meets</dt><dd>{cu.meets}</dd></div>
               <div class="cu-fact"><dt>Location</dt><dd>{cu.location}</dd></div>
@@ -517,7 +520,7 @@ pages.get('/cu', (c) => {
               <h3 style="margin-bottom:0.25rem;">How to register</h3>
               <ol>
                 <li>Sign in to <a href="https://buffportal.colorado.edu" target="_blank" rel="noopener">Buff Portal</a> &rarr; <strong>Search Classes</strong>, term <strong>Fall 2026</strong>.</li>
-                <li>Search <code>{cu.codeUgrad}</code> (undergraduate) or <code>{cu.codeGrad}</code> (graduate). It's a Special Topics number with several sections &mdash; pick the one titled <strong>&ldquo;{cu.sectionTitle}.&rdquo;</strong> <span class="cu-tbd cu-noprint">class numbers: TBD &mdash; Aaron to add</span></li>
+                <li>Search <code>{cu.codeUgrad}</code> (undergraduate) or <code>{cu.codeGrad}</code> (graduate). It's a Special Topics number with several sections &mdash; pick the one titled <strong>&ldquo;{cu.sectionTitle}&rdquo;</strong> (<strong>Section {cu.section}</strong>). Fastest: in Buff Portal use <strong>&ldquo;add by class number&rdquo;</strong> &rarr; <code>{cu.classNbr}</code>.</li>
                 <li>Want to look first? View the class on the public <a href="https://classes.colorado.edu" target="_blank" rel="noopener">CU class search</a> &mdash; no login needed.</li>
               </ol>
               <p style="margin-top:1rem;">
