@@ -17,6 +17,7 @@ import { authenticateOAuthToken } from '../lib/oauth'
 import { isAdmin } from '../lib/auth'
 import { sendBroadcast, type BroadcastAudience } from '../lib/email'
 import { renderMarkdown } from '../lib/markdown'
+import { validateDeck } from '../lib/deck-schema'
 import type { AppContext } from '../types'
 import type { AuthUser } from '../lib/auth'
 
@@ -95,6 +96,20 @@ async function resolveActiveCohortSlug(
   candidates.sort((a, b) => b.cohortId - a.cohortId)
   return candidates[0].slug
 }
+
+/** The slide-deck JSON vocabulary, inlined into tool descriptions so any
+ *  Claude session can author decks correctly without reading code. Keep in
+ *  sync with src/lib/deck-schema.ts (the validator is the source of truth). */
+const DECK_MODEL_DOC = `Deck JSON model: { title: string, slides: Slide[] } (max 40 slides). Every slide has: layout (string), optional notes (speaker-notes string, shown in the presenter overlay), optional label (short screen label like "05 Signature Prompt"). Layouts and their fields:
+- title: { kicker, heading, sub, meta } — opening slide; meta is the mono footer line.
+- statement: { kicker, heading, lead?, dark?, surface? } — one big statement; dark/surface switch the background.
+- arc: { kicker, heading, items: [{num, name, now?}], note? } — sequence of chips with one highlighted "now" chip.
+- cards: { kicker, heading, cards: [{label, heading, body}] } — 2 or 3 cards; the grid adapts to the count.
+- prompt: { kicker, heading, filename?, barLabel?, paragraphs: string[], footnote? } — dark terminal-style prompt block; filename adds the surface background + filename header treatment.
+- list: { kicker, heading, items: [{num?, name, sub?, desc}], footnote? } — numbered editorial rows.
+- twoCol: { kicker, heading, cols: [{label, heading, body?, kv?: [{k, v}], pinned?}] } — exactly 2 column cards; pinned adds an orange left edge.
+- closing: { kicker, heading, items?: [{num, name, desc}], mantras?: string[], signoff? } — compact recap + display-size mantras.
+Text handling in ALL fields: everything is HTML-escaped (no raw HTML), [[text]] renders as an orange accent span, and newlines become line breaks in heading/sub fields.`
 
 const TOOLS: ToolDef[] = [
   {
@@ -296,6 +311,51 @@ const TOOLS: ToolDef[] = [
         transcriptSummary: lesson.transcriptSummary,
         hasTranscript: !!lesson.transcriptMarkdown,
         hasTranscriptSummary: !!lesson.transcriptSummary,
+        // Live presentation page when a slide deck is stored for this week.
+        // The deck JSON itself is available via get_deck.
+        slidesUrl: lesson.slidesJson
+          ? `https://learnvibe.build/cohort/${cohort.slug}/week/${lesson.weekNumber}/slides`
+          : null,
+      })
+    },
+  },
+  {
+    name: 'get_deck',
+    description: `Read the slide deck stored for a lesson, as deck-model JSON, plus the live presentation URL. Errors when no deck is stored for that week (get_lesson's slidesUrl field tells you whether one exists). cohortSlug defaults to your active enrolled cohort; weekNumber is required. ${DECK_MODEL_DOC}`,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        cohortSlug: { type: 'string', description: 'Cohort slug like "cohort-1". Optional — defaults to your active enrolled cohort.' },
+        weekNumber: { type: 'integer', minimum: 1, description: 'Week number (1-indexed). Required.' },
+      },
+      required: ['weekNumber'],
+    },
+    handler: async (args, user, db) => {
+      const slug = args.cohortSlug || (await resolveActiveCohortSlug(db, user.id))
+      if (!slug) throw new Error("No cohortSlug provided and you're not enrolled in any cohort. Pass cohortSlug explicitly.")
+      const cohort = await db.select().from(cohorts).where(eq(cohorts.slug, slug)).get()
+      if (!cohort) throw new Error(`Cohort '${slug}' not found`)
+      const admin = isAdmin(user)
+      const lesson = await db.select({
+        weekNumber: lessons.weekNumber,
+        title: lessons.title,
+        slidesJson: lessons.slidesJson,
+      })
+        .from(lessons)
+        .where(and(
+          eq(lessons.cohortId, cohort.id),
+          eq(lessons.weekNumber, args.weekNumber),
+          ...(admin ? [] : [eq(lessons.status, 'published')]),
+        ))
+        .get()
+      if (!lesson) throw new Error(`Lesson Week ${args.weekNumber} not found in ${slug}`)
+      if (!lesson.slidesJson) throw new Error(`No slide deck stored for Week ${args.weekNumber} in ${slug}`)
+      return textResult({
+        cohortSlug: cohort.slug,
+        weekNumber: lesson.weekNumber,
+        lessonTitle: lesson.title,
+        slidesUrl: `https://learnvibe.build/cohort/${cohort.slug}/week/${lesson.weekNumber}/slides`,
+        deck: JSON.parse(lesson.slidesJson),
       })
     },
   },
@@ -808,6 +868,52 @@ const TOOLS: ToolDef[] = [
         updatedAt: now,
       }).returning().get()
       return textResult({ action: 'created', id: inserted.id, weekNumber: args.weekNumber })
+    },
+  },
+  {
+    name: 'admin_upsert_deck',
+    description: `ADMIN: store (or replace) the slide deck for a lesson, identified by (cohortSlug, weekNumber). The deck is validated against the deck model before saving — on validation failure you get every problem found, fix them and retry. Slides render server-side at the returned slidesUrl in the Learn Vibe Build deck style (1920x1080 stage, scale-to-fit, arrow-key navigation, 'n' for speaker notes, print-to-PDF). The lesson must already exist — create it first with admin_upsert_lesson. Pass deck: null to remove a stored deck. ${DECK_MODEL_DOC}`,
+    adminOnly: true,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        cohortSlug: { type: 'string' },
+        weekNumber: { type: 'integer', minimum: 1 },
+        deck: {
+          type: ['object', 'null'],
+          description: 'The full deck as { title, slides } per the deck model in this tool\'s description. null removes the stored deck.',
+        },
+      },
+      required: ['cohortSlug', 'weekNumber', 'deck'],
+    },
+    handler: async (args, _user, db) => {
+      const cohort = await db.select().from(cohorts).where(eq(cohorts.slug, args.cohortSlug)).get()
+      if (!cohort) throw new Error(`Cohort '${args.cohortSlug}' not found`)
+      const lesson = await db.select({ id: lessons.id })
+        .from(lessons)
+        .where(and(eq(lessons.cohortId, cohort.id), eq(lessons.weekNumber, args.weekNumber)))
+        .get()
+      if (!lesson) throw new Error(`Lesson Week ${args.weekNumber} not found in ${args.cohortSlug} — create it first with admin_upsert_lesson`)
+
+      const now = new Date().toISOString()
+      if (args.deck === null) {
+        await db.update(lessons).set({ slidesJson: null, updatedAt: now }).where(eq(lessons.id, lesson.id))
+        return textResult({ action: 'removed', weekNumber: args.weekNumber })
+      }
+
+      const validated = validateDeck(args.deck)
+      if (!validated.ok) {
+        throw new Error(`Deck failed validation:\n- ${validated.errors.join('\n- ')}`)
+      }
+      await db.update(lessons)
+        .set({ slidesJson: JSON.stringify(validated.deck), updatedAt: now })
+        .where(eq(lessons.id, lesson.id))
+      return textResult({
+        action: 'saved',
+        weekNumber: args.weekNumber,
+        slideCount: validated.deck.slides.length,
+        slidesUrl: `https://learnvibe.build/cohort/${cohort.slug}/week/${args.weekNumber}/slides`,
+      })
     },
   },
   {

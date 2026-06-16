@@ -135,5 +135,5 @@ npm run db:migrate:remote  # Apply migration to production D1
 ```
 
 ## People
-- **Aaron Gabriel** — Lead Facilitator. Founder of Parachute (parachute.computer), ATLAS grad student, founding member of Regen Hub Cooperative (regenhub.xyz)
+- **Aaron Gabriel** — Lead Facilitator. Founder of Parachute (parachute.computer), CU Boulder ATLAS Institute alum, founding member of Regen Hub Cooperative (regenhub.xyz). Note: at CU he goes by his legal name **Aaron G Neyer** (aaron.neyer@colorado.edu) — used on the `/cu` course page/flyer; "Aaron Gabriel" is the LVB brand name everywhere else.
 - **Jon Bo** — Co-Facilitator. 3x founding engineer, builder of things, writer of words. Daily user of Claude Code.

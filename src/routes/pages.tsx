@@ -193,6 +193,362 @@ pages.get('/curriculum', (c) => {
   )
 })
 
+// ===== CU BOULDER COURSE PAGE — ATLS 4519 =====
+// Landing page + print flyer for the Fall 2026 CU class. One route serves
+// both: the screen view is the full-bleed hybrid (dark hero + warm body);
+// the @media print block flips the hero to printer-friendly white, drops
+// the chat card / long bio / bottom CTA, and collapses to a single page so
+// Ctrl-P (or "Save as PDF") produces the flyer Mark can share. /atls4519
+// and /fall are 301 aliases to /cu (see redirects below).
+const CU_COURSE = {
+  code: 'ATLS 4519',
+  title: 'Learn Vibe Build',
+  catalogTitle: 'Advanced Special Topics: Learn, Vibe, Build',
+  sectionTitle: 'Learn, Vibe, Build',
+  section: '005',
+  classNbr: '39152',
+  credits: '3 credits',
+  meets: 'Wednesdays · 5:05–7:35 PM',
+  location: 'ATLAS room 104, CU Boulder',
+  term: 'Fall 2026',
+  open: 'Open to all majors · no prerequisites',
+  instructor: 'Aaron G Neyer',
+  instructorEmail: 'aaron.neyer@colorado.edu',
+  url: 'learnvibe.build/cu',
+}
+
+const CU_MOVEMENTS = [
+  {
+    name: 'Learn',
+    line: 'Talk to AI as a creative partner — and build a personal knowledge system that travels with you across every conversation.',
+  },
+  {
+    name: 'Vibe',
+    line: 'Take an idea you care about, clarify it in conversation, and prototype it — design at the speed of thought.',
+  },
+  {
+    name: 'Build',
+    line: 'Ship it. A real project at a real URL on the open internet, plus the judgment to keep growing it responsibly.',
+  },
+]
+
+pages.get('/cu', (c) => {
+  const user = c.get('user')
+  const cu = CU_COURSE
+
+  return c.html(
+    <Layout
+      title={`${cu.code} — ${cu.title} at CU Boulder`}
+      description="A hands-on, semester-long course at CU Boulder's ATLAS Institute, Fall 2026. Build real things with AI as a creative partner and ship them to the open internet. Open to all majors, no coding experience required."
+      user={user}
+      fullWidth
+    >
+      <style dangerouslySetInnerHTML={{ __html: `
+        .cu-wrap { max-width: 920px; margin: 0 auto; padding: 0 1.5rem; }
+
+        /* ---- HERO (dark band, full-bleed) ---- */
+        .cu-hero {
+          background: #111;
+          color: #fafaf8;
+          padding: 4.5rem 0 4rem;
+          position: relative;
+          overflow: hidden;
+        }
+        .cu-hero::before {
+          content: '';
+          position: absolute; inset: 0;
+          background:
+            radial-gradient(circle at 15% 0%, rgba(232,97,42,0.22) 0%, transparent 38%),
+            radial-gradient(circle at 90% 100%, rgba(232,97,42,0.10) 0%, transparent 42%);
+          pointer-events: none;
+        }
+        .cu-hero .cu-wrap { position: relative; }
+        .cu-eyebrow {
+          font-family: var(--font-mono);
+          font-size: 0.72rem;
+          letter-spacing: 0.18em;
+          text-transform: uppercase;
+          color: var(--accent);
+          display: inline-flex; align-items: center; gap: 0.55rem;
+          margin-bottom: 1.5rem;
+        }
+        .cu-pulse {
+          width: 7px; height: 7px; border-radius: 999px; background: var(--accent);
+          box-shadow: 0 0 0 0 rgba(232,97,42,0.6);
+          animation: cuPulse 2.2s infinite;
+        }
+        @keyframes cuPulse {
+          0% { box-shadow: 0 0 0 0 rgba(232,97,42,0.55); }
+          70% { box-shadow: 0 0 0 7px rgba(232,97,42,0); }
+          100% { box-shadow: 0 0 0 0 rgba(232,97,42,0); }
+        }
+        .cu-h1 {
+          font-family: var(--font-display);
+          font-weight: 700;
+          font-size: clamp(2.6rem, 7vw, 4.6rem);
+          line-height: 0.98;
+          letter-spacing: -0.03em;
+          margin: 0 0 1.1rem;
+          color: #fff;
+        }
+        .cu-h1 .slash { color: var(--accent); font-weight: 500; }
+        .cu-sub {
+          font-size: clamp(1.05rem, 2.2vw, 1.35rem);
+          color: rgba(250,250,248,0.82);
+          max-width: 30ch;
+          line-height: 1.4;
+          margin: 0 0 1.75rem;
+        }
+        .cu-metarow {
+          display: flex; flex-wrap: wrap; gap: 0.5rem 1.1rem;
+          font-family: var(--font-mono);
+          font-size: 0.8rem;
+          color: rgba(250,250,248,0.72);
+          margin-bottom: 2rem;
+        }
+        .cu-metarow .sep { color: var(--accent); }
+        .cu-cta-row { display: flex; flex-wrap: wrap; gap: 0.75rem; }
+        .cu-btn {
+          display: inline-flex; align-items: center; gap: 0.5rem;
+          font-weight: 600; font-size: 0.95rem;
+          padding: 0.85rem 1.6rem; border-radius: 999px;
+          text-decoration: none; transition: transform 0.15s, background 0.15s;
+        }
+        .cu-btn-primary { background: var(--accent); color: #fff; }
+        .cu-btn-primary:hover { background: #fff; color: #111; transform: translateY(-1px); }
+        .cu-btn-ghost { color: #fafaf8; border: 1px solid rgba(255,255,255,0.28); }
+        .cu-btn-ghost:hover { border-color: #fff; transform: translateY(-1px); }
+
+        /* chat / session card */
+        .cu-chat {
+          margin-top: 2.75rem;
+          background: #0b0b0b;
+          border: 1px solid rgba(255,255,255,0.12);
+          border-radius: 14px;
+          padding: 1rem 1.15rem 1.25rem;
+          font-family: var(--font-mono);
+          font-size: 0.86rem;
+          max-width: 540px;
+          box-shadow: 0 20px 50px -25px rgba(0,0,0,0.8);
+        }
+        .cu-chat-bar { display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.9rem; }
+        .cu-dot { width: 10px; height: 10px; border-radius: 999px; }
+        .cu-chat-label {
+          margin-left: 0.6rem; font-size: 0.62rem; letter-spacing: 0.18em;
+          text-transform: uppercase; color: rgba(250,250,248,0.4);
+        }
+        .cu-chat-line { line-height: 1.7; color: rgba(250,250,248,0.86); }
+        .cu-chat-line .who { color: var(--accent); }
+        .cu-chat-line .ai { color: #7fb2ff; }
+        .cu-chat-ship { color: #6ee787; }
+        .cu-cursor {
+          display: inline-block; width: 7px; height: 1em; background: var(--accent);
+          vertical-align: -2px; margin-left: 2px; animation: cuBlink 1.1s steps(2) infinite;
+        }
+        @keyframes cuBlink { 0%,50% { opacity: 1; } 50.01%,100% { opacity: 0; } }
+
+        /* ---- BODY ---- */
+        .cu-body { padding: 3.5rem 0 1rem; }
+        .cu-blurb { font-size: 1.12rem; line-height: 1.65; color: var(--text); max-width: 60ch; }
+        .cu-movements { display: grid; gap: 1rem; margin: 2.5rem 0 0; }
+        .cu-move {
+          display: grid; grid-template-columns: auto 1fr; gap: 1.1rem; align-items: baseline;
+          padding: 1.1rem 1.35rem; background: var(--white);
+          border: 1px solid var(--border); border-radius: 12px;
+        }
+        .cu-move-name {
+          font-family: var(--font-display); font-weight: 600; font-size: 1.25rem;
+          letter-spacing: -0.01em; color: var(--accent);
+        }
+        .cu-move-num {
+          font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-tertiary);
+          display: block; margin-top: 0.15rem;
+        }
+        .cu-move p { margin: 0; font-size: 0.96rem; line-height: 1.55; color: var(--text-secondary); }
+
+        .cu-panel {
+          margin-top: 2.5rem; padding: 1.75rem 2rem;
+          background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+        }
+        .cu-panel h3 { margin: 0 0 1.1rem; font-size: 1.05rem; font-family: var(--font-display); }
+        .cu-facts { display: grid; grid-template-columns: 1fr 1fr; gap: 0.85rem 2rem; }
+        .cu-fact { display: flex; flex-direction: column; gap: 0.15rem; }
+        .cu-fact dt {
+          font-family: var(--font-mono); font-size: 0.66rem; letter-spacing: 0.08em;
+          text-transform: uppercase; color: var(--text-tertiary);
+        }
+        .cu-fact dd { margin: 0; font-size: 0.98rem; font-weight: 500; color: var(--text); }
+
+        .cu-register { margin-top: 1.5rem; }
+        .cu-register ol { margin: 0.5rem 0 0; padding-left: 1.25rem; line-height: 1.85; color: var(--text-secondary); }
+        .cu-register code {
+          font-family: var(--font-mono); font-size: 0.9em; background: var(--white);
+          border: 1px solid var(--border); border-radius: 5px; padding: 0.1rem 0.4rem; color: var(--text);
+        }
+        .cu-tbd {
+          font-family: var(--font-mono); font-size: 0.78rem; color: var(--accent);
+          background: rgba(232,97,42,0.08); border: 1px dashed var(--accent);
+          border-radius: 5px; padding: 0.1rem 0.45rem;
+        }
+        .cu-instructor {
+          margin-top: 2.5rem; padding-top: 2rem; border-top: 1px solid var(--border);
+          color: var(--text-secondary); line-height: 1.7;
+        }
+        .cu-instructor strong { color: var(--text); }
+
+        .cu-print-only { display: none; }
+
+        @media (max-width: 600px) {
+          .cu-facts { grid-template-columns: 1fr; }
+          .cu-move { grid-template-columns: 1fr; gap: 0.35rem; }
+        }
+
+        /* ---- PRINT: the flyer (one page, printer-friendly) ---- */
+        @media print {
+          /* Uniform shrink so the whole flyer scales to one page; all the
+             spacing below is in rem, so this scales it proportionally. */
+          html { font-size: 13.5px; }
+          .nav, footer, .cu-noprint, .cu-cta-row { display: none !important; }
+          .cu-screen-only { display: none !important; }
+          .cu-print-only { display: block !important; }
+          @page { margin: 0.45in; }
+          body { background: #fff; }
+          .cu-hero {
+            background: #fff !important; color: #111 !important;
+            padding: 0 0 0.4rem !important; overflow: visible;
+          }
+          .cu-hero::before { display: none !important; }
+          .cu-eyebrow { margin-bottom: 0.55rem !important; }
+          .cu-h1 { color: #111 !important; font-size: 2.3rem !important; margin-bottom: 0.4rem !important; }
+          .cu-sub { color: #333 !important; max-width: 100%; font-size: 0.98rem !important; margin-bottom: 0.7rem !important; }
+          .cu-metarow { color: #333 !important; border-top: 1px solid #ddd; border-bottom: 1px solid #ddd; padding: 0.45rem 0; margin-bottom: 0 !important; font-size: 0.74rem !important; }
+          .cu-wrap { max-width: 100% !important; padding: 0 !important; }
+          .cu-body { padding: 0.9rem 0 0 !important; }
+          .cu-blurb { font-size: 0.9rem !important; line-height: 1.45 !important; max-width: 100%; margin-bottom: 0 !important; }
+          .cu-movements { gap: 0.4rem !important; margin-top: 0.9rem !important; }
+          .cu-move { padding: 0.45rem 0.8rem !important; break-inside: avoid; }
+          .cu-move-name { font-size: 1.05rem !important; }
+          .cu-move-num { margin-top: 0 !important; }
+          .cu-move p { font-size: 0.83rem !important; line-height: 1.35 !important; }
+          .cu-panel { margin-top: 0.9rem !important; padding: 0.9rem 1.15rem !important; background: #f7f7f5 !important; break-inside: avoid; }
+          .cu-panel h3 { margin-bottom: 0.6rem !important; font-size: 0.98rem !important; }
+          .cu-facts { gap: 0.45rem 1.5rem !important; }
+          .cu-fact dd { font-size: 0.88rem !important; }
+          .cu-register { margin-top: 0.85rem !important; }
+          .cu-register ol { line-height: 1.5 !important; font-size: 0.88rem !important; }
+          .cu-register p { font-size: 0.88rem !important; margin-top: 0.6rem !important; }
+          a { color: #111 !important; text-decoration: none; }
+          .cu-register a, .cu-fact dd a { text-decoration: underline; }
+        }
+      `}} />
+
+      {/* ===== HERO ===== */}
+      <section class="cu-hero">
+        <div class="cu-wrap">
+          <span class="cu-eyebrow"><span class="cu-pulse cu-noprint"></span>{cu.code} · CU Boulder · {cu.term}</span>
+          <h1 class="cu-h1">Learn <span class="slash">/</span> Vibe <span class="slash">/</span> Build</h1>
+          <p class="cu-sub">Build real things with AI as a creative partner — and ship them to the open internet.</p>
+          <div class="cu-metarow">
+            <span>{cu.meets}</span><span class="sep">·</span>
+            <span>{cu.location}</span><span class="sep">·</span>
+            <span>{cu.credits}</span><span class="sep">·</span>
+            <span>All majors, no prereqs</span>
+          </div>
+          <div class="cu-cta-row">
+            <a class="cu-btn cu-btn-primary" href="https://buffportal.colorado.edu" target="_blank" rel="noopener">
+              Register on Buff Portal
+              <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </a>
+            <a class="cu-btn cu-btn-ghost" href={`mailto:${cu.instructorEmail}?subject=ATLS%204519%20%E2%80%94%20Learn%20Vibe%20Build`}>Email the instructor</a>
+          </div>
+
+          <div class="cu-chat cu-noprint" aria-hidden="true">
+            <div class="cu-chat-bar">
+              <span class="cu-dot" style="background:#ff5f57"></span>
+              <span class="cu-dot" style="background:#febc2e"></span>
+              <span class="cu-dot" style="background:#28c840"></span>
+              <span class="cu-chat-label">learn-vibe-build · session</span>
+            </div>
+            <div class="cu-chat-line"><span class="who">you ›</span> i want to build something for my senior project</div>
+            <div class="cu-chat-line"><span class="ai">ai ›</span> what should it do first?</div>
+            <div class="cu-chat-line"><span class="who">you ›</span> log sensor readings, flag the anomalies</div>
+            <div class="cu-chat-line"><span class="ai">ai ›</span> here's a working prototype →</div>
+            <div class="cu-chat-line"><span class="cu-chat-ship">✓ shipped</span> · live at a real url<span class="cu-cursor"></span></div>
+          </div>
+        </div>
+      </section>
+
+      {/* ===== BODY ===== */}
+      <section class="cu-body">
+        <div class="cu-wrap">
+          <p class="cu-blurb cu-screen-only">
+            A hands-on, semester-long course in building with AI &mdash; not as a search engine, but as a creative partner you direct. Across three movements you'll go from your first real conversation with an AI to a working project live on the internet, yours to keep growing. Whatever you're studying &mdash; mechanical engineering, design, music, business &mdash; the skill that's becoming universal is knowing how to <em>lead</em> the work with AI. This course is that skill, practiced on something you actually care about. <strong>No coding experience required.</strong>
+          </p>
+          <p class="cu-blurb cu-print-only">
+            A hands-on, semester-long course in building with AI as a creative partner you direct &mdash; not a search engine. Across three movements you'll go from your first real AI conversation to a working project live on the internet, yours to keep growing. Whatever your major, the universal new skill is knowing how to <em>lead</em> the work with AI &mdash; practiced here on something you actually care about. <strong>No coding experience required.</strong>
+          </p>
+
+          <div class="cu-movements">
+            {CU_MOVEMENTS.map((m, i) => (
+              <div class="cu-move">
+                <div>
+                  <span class="cu-move-name">{m.name}</span>
+                  <span class="cu-move-num">0{i + 1}</span>
+                </div>
+                <p>{m.line}</p>
+              </div>
+            ))}
+          </div>
+
+          <div class="cu-panel">
+            <h3>The details</h3>
+            <dl class="cu-facts">
+              <div class="cu-fact"><dt>Course</dt><dd>{cu.code}</dd></div>
+              <div class="cu-fact"><dt>Section / Class #</dt><dd>Section {cu.section} &middot; #{cu.classNbr}</dd></div>
+              <div class="cu-fact"><dt>Catalog title</dt><dd>{cu.catalogTitle}</dd></div>
+              <div class="cu-fact"><dt>Meets</dt><dd>{cu.meets}</dd></div>
+              <div class="cu-fact"><dt>Location</dt><dd>{cu.location}</dd></div>
+              <div class="cu-fact"><dt>Credits</dt><dd>{cu.credits}</dd></div>
+              <div class="cu-fact"><dt>Term</dt><dd>{cu.term}</dd></div>
+              <div class="cu-fact"><dt>Eligibility</dt><dd>{cu.open}</dd></div>
+              <div class="cu-fact"><dt>Instructor</dt><dd>{cu.instructor}</dd></div>
+            </dl>
+
+            <div class="cu-register">
+              <h3 style="margin-bottom:0.25rem;">How to register</h3>
+              <ol>
+                <li>Sign in to <a href="https://buffportal.colorado.edu" target="_blank" rel="noopener">Buff Portal</a> &rarr; <strong>Search Classes</strong>, term <strong>Fall 2026</strong>.</li>
+                <li>Search <code>{cu.code}</code>. It's a Special Topics number with several sections &mdash; pick the one titled <strong>&ldquo;{cu.sectionTitle}&rdquo;</strong> (<strong>Section {cu.section}</strong>). Fastest: in Buff Portal use <strong>&ldquo;add by class number&rdquo;</strong> &rarr; <code>{cu.classNbr}</code>.</li>
+                <li>Want to look first? View the class on the public <a href="https://classes.colorado.edu" target="_blank" rel="noopener">CU class search</a> &mdash; no login needed.</li>
+              </ol>
+              <p style="margin-top:1rem;">
+                Questions, or not sure if it's right for you? Email Aaron at <a href={`mailto:${cu.instructorEmail}`}>{cu.instructorEmail}</a> &mdash; happy to talk it through.
+              </p>
+              <p style="margin-top:0.6rem;font-weight:500;color:var(--text);">
+                Full details &amp; latest updates: <a href="https://learnvibe.build/cu" style="color:var(--accent);">{cu.url}</a>
+              </p>
+            </div>
+          </div>
+
+          <div class="cu-instructor cu-noprint">
+            <p>
+              <strong>Taught by {cu.instructor}</strong> &mdash; founder of <a href="https://parachute.computer" target="_blank" rel="noopener" style="color:var(--accent)">Parachute</a>, an ATLAS Institute alum, and founding member of the <a href="https://regenhub.xyz" target="_blank" rel="noopener" style="color:var(--accent)">Regen Hub Cooperative</a>. He's spent the last year building with AI every day and running <a href="/" style="color:var(--accent)">Learn Vibe Build</a> as a community cohort in Boulder &mdash; this is that practice, given a full semester.
+            </p>
+          </div>
+
+          <div class="page-section cu-noprint" style="text-align:center;padding:3rem 0 4rem;">
+            <a class="cu-btn cu-btn-primary" href="https://buffportal.colorado.edu" target="_blank" rel="noopener" style="background:var(--accent);">
+              Register on Buff Portal
+              <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </a>
+            <p style="margin-top:1rem;font-size:0.85rem;color:var(--text-tertiary);">{cu.code} &middot; {cu.title} &middot; {cu.term} &middot; CU Boulder ATLAS Institute</p>
+          </div>
+        </div>
+      </section>
+    </Layout>
+  )
+})
+
 // ===== /connect — public guide to the Learn Vibe Build MCP connector =====
 // /mcp is the JSON-RPC endpoint (machine-readable). This is the human-readable
 // page that walks people through hooking it up to Claude.
@@ -290,6 +646,10 @@ pages.get('/apply', (c) => {
 pages.get('/apply/success', (c) => c.redirect('/enroll/success', 301))
 pages.get('/apply/status', (c) => c.redirect('/dashboard', 301))
 pages.post('/apply/status', (c) => c.redirect('/dashboard', 303))
+
+// CU course page aliases → /cu (memorable URLs for the flyer / email)
+pages.get('/atls4519', (c) => c.redirect('/cu', 301))
+pages.get('/fall', (c) => c.redirect('/cu', 301))
 
 pages.get('/enroll', async (c) => {
   const error = c.req.query('error')
