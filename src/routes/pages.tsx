@@ -205,13 +205,16 @@ const CU_COURSE = {
   codeUgrad: 'ATLS 4519',
   codeGrad: 'ATLS 5519',
   title: 'Learn Vibe Build',
+  catalogTitle: 'Advanced Special Topics: Learn, Vibe, Build',
+  sectionTitle: 'Learn, Vibe, Build',
   credits: '3 credits',
   meets: 'Wednesdays · 5:05–7:35 PM',
   location: 'ATLAS room 104, CU Boulder',
   term: 'Fall 2026',
   open: 'Open to all majors · no prerequisites',
-  instructor: 'Aaron Gabriel',
+  instructor: 'Aaron G Neyer',
   instructorEmail: 'aaron.neyer@colorado.edu',
+  url: 'learnvibe.build/cu',
 }
 
 const CU_MOVEMENTS = [
@@ -402,6 +405,9 @@ pages.get('/cu', (c) => {
 
         /* ---- PRINT: the flyer (one page, printer-friendly) ---- */
         @media print {
+          /* Uniform shrink so the whole flyer scales to one page; all the
+             spacing below is in rem, so this scales it proportionally. */
+          html { font-size: 13.5px; }
           .nav, footer, .cu-noprint, .cu-cta-row { display: none !important; }
           .cu-screen-only { display: none !important; }
           .cu-print-only { display: block !important; }
@@ -498,7 +504,7 @@ pages.get('/cu', (c) => {
             <h3>The details</h3>
             <dl class="cu-facts">
               <div class="cu-fact"><dt>Course</dt><dd>{cu.code} <span style="font-weight:400;color:var(--text-tertiary)">(cross-listed)</span></dd></div>
-              <div class="cu-fact"><dt>Title</dt><dd>{cu.title}</dd></div>
+              <div class="cu-fact"><dt>Catalog title</dt><dd>{cu.catalogTitle}</dd></div>
               <div class="cu-fact"><dt>Meets</dt><dd>{cu.meets}</dd></div>
               <div class="cu-fact"><dt>Location</dt><dd>{cu.location}</dd></div>
               <div class="cu-fact"><dt>Credits</dt><dd>{cu.credits}</dd></div>
@@ -511,18 +517,21 @@ pages.get('/cu', (c) => {
               <h3 style="margin-bottom:0.25rem;">How to register</h3>
               <ol>
                 <li>Sign in to <a href="https://buffportal.colorado.edu" target="_blank" rel="noopener">Buff Portal</a> &rarr; <strong>Search Classes</strong>, term <strong>Fall 2026</strong>.</li>
-                <li>Search <code>{cu.codeUgrad}</code> (undergraduate) or <code>{cu.codeGrad}</code> (graduate) and add the section. <span class="cu-tbd cu-noprint">class numbers: TBD &mdash; Aaron to add</span></li>
+                <li>Search <code>{cu.codeUgrad}</code> (undergraduate) or <code>{cu.codeGrad}</code> (graduate). It's a Special Topics number with several sections &mdash; pick the one titled <strong>&ldquo;{cu.sectionTitle}.&rdquo;</strong> <span class="cu-tbd cu-noprint">class numbers: TBD &mdash; Aaron to add</span></li>
                 <li>Want to look first? View the class on the public <a href="https://classes.colorado.edu" target="_blank" rel="noopener">CU class search</a> &mdash; no login needed.</li>
               </ol>
               <p style="margin-top:1rem;">
                 Questions, or not sure if it's right for you? Email Aaron at <a href={`mailto:${cu.instructorEmail}`}>{cu.instructorEmail}</a> &mdash; happy to talk it through.
+              </p>
+              <p style="margin-top:0.6rem;font-weight:500;color:var(--text);">
+                Full details &amp; latest updates: <a href="https://learnvibe.build/cu" style="color:var(--accent);">{cu.url}</a>
               </p>
             </div>
           </div>
 
           <div class="cu-instructor cu-noprint">
             <p>
-              <strong>Taught by {cu.instructor}</strong> &mdash; founder of <a href="https://parachute.computer" target="_blank" rel="noopener" style="color:var(--accent)">Parachute</a>, ATLAS graduate student, and founding member of the <a href="https://regenhub.xyz" target="_blank" rel="noopener" style="color:var(--accent)">Regen Hub Cooperative</a>. He's spent the last year building with AI every day and running <a href="/" style="color:var(--accent)">Learn Vibe Build</a> as a community cohort in Boulder &mdash; this is that practice, given a full semester.
+              <strong>Taught by {cu.instructor}</strong> &mdash; founder of <a href="https://parachute.computer" target="_blank" rel="noopener" style="color:var(--accent)">Parachute</a>, an ATLAS Institute alum, and founding member of the <a href="https://regenhub.xyz" target="_blank" rel="noopener" style="color:var(--accent)">Regen Hub Cooperative</a>. He's spent the last year building with AI every day and running <a href="/" style="color:var(--accent)">Learn Vibe Build</a> as a community cohort in Boulder &mdash; this is that practice, given a full semester.
             </p>
           </div>
 
