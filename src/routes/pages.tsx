@@ -193,7 +193,7 @@ pages.get('/curriculum', (c) => {
   )
 })
 
-// ===== CU BOULDER COURSE PAGE — ATLS 4519/5519 =====
+// ===== CU BOULDER COURSE PAGE — ATLS 4519 =====
 // Landing page + print flyer for the Fall 2026 CU class. One route serves
 // both: the screen view is the full-bleed hybrid (dark hero + warm body);
 // the @media print block flips the hero to printer-friendly white, drops
@@ -201,9 +201,7 @@ pages.get('/curriculum', (c) => {
 // Ctrl-P (or "Save as PDF") produces the flyer Mark can share. /atls4519
 // and /fall are 301 aliases to /cu (see redirects below).
 const CU_COURSE = {
-  code: 'ATLS 4519 / 5519',
-  codeUgrad: 'ATLS 4519',
-  codeGrad: 'ATLS 5519',
+  code: 'ATLS 4519',
   title: 'Learn Vibe Build',
   catalogTitle: 'Advanced Special Topics: Learn, Vibe, Build',
   sectionTitle: 'Learn, Vibe, Build',
@@ -461,7 +459,7 @@ pages.get('/cu', (c) => {
               Register on Buff Portal
               <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
             </a>
-            <a class="cu-btn cu-btn-ghost" href={`mailto:${cu.instructorEmail}?subject=ATLS%204519%2F5519%20%E2%80%94%20Learn%20Vibe%20Build`}>Email the instructor</a>
+            <a class="cu-btn cu-btn-ghost" href={`mailto:${cu.instructorEmail}?subject=ATLS%204519%20%E2%80%94%20Learn%20Vibe%20Build`}>Email the instructor</a>
           </div>
 
           <div class="cu-chat cu-noprint" aria-hidden="true">
@@ -505,7 +503,7 @@ pages.get('/cu', (c) => {
           <div class="cu-panel">
             <h3>The details</h3>
             <dl class="cu-facts">
-              <div class="cu-fact"><dt>Course</dt><dd>{cu.code} <span style="font-weight:400;color:var(--text-tertiary)">(cross-listed)</span></dd></div>
+              <div class="cu-fact"><dt>Course</dt><dd>{cu.code}</dd></div>
               <div class="cu-fact"><dt>Section / Class #</dt><dd>Section {cu.section} &middot; #{cu.classNbr}</dd></div>
               <div class="cu-fact"><dt>Catalog title</dt><dd>{cu.catalogTitle}</dd></div>
               <div class="cu-fact"><dt>Meets</dt><dd>{cu.meets}</dd></div>
@@ -520,7 +518,7 @@ pages.get('/cu', (c) => {
               <h3 style="margin-bottom:0.25rem;">How to register</h3>
               <ol>
                 <li>Sign in to <a href="https://buffportal.colorado.edu" target="_blank" rel="noopener">Buff Portal</a> &rarr; <strong>Search Classes</strong>, term <strong>Fall 2026</strong>.</li>
-                <li>Search <code>{cu.codeUgrad}</code> (undergraduate) or <code>{cu.codeGrad}</code> (graduate). It's a Special Topics number with several sections &mdash; pick the one titled <strong>&ldquo;{cu.sectionTitle}&rdquo;</strong> (<strong>Section {cu.section}</strong>). Fastest: in Buff Portal use <strong>&ldquo;add by class number&rdquo;</strong> &rarr; <code>{cu.classNbr}</code>.</li>
+                <li>Search <code>{cu.code}</code>. It's a Special Topics number with several sections &mdash; pick the one titled <strong>&ldquo;{cu.sectionTitle}&rdquo;</strong> (<strong>Section {cu.section}</strong>). Fastest: in Buff Portal use <strong>&ldquo;add by class number&rdquo;</strong> &rarr; <code>{cu.classNbr}</code>.</li>
                 <li>Want to look first? View the class on the public <a href="https://classes.colorado.edu" target="_blank" rel="noopener">CU class search</a> &mdash; no login needed.</li>
               </ol>
               <p style="margin-top:1rem;">

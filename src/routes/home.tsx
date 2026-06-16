@@ -269,7 +269,7 @@ home.get('/', async (c) => {
 
         <a href="/cu" style="display: block; margin-top: 1.5rem; padding: 1.5rem 1.75rem; background: var(--white); border: 1px solid var(--border); border-radius: 10px; text-decoration: none;">
           <p class="section-label" style="margin-bottom: 0.4rem;">At CU Boulder &middot; Fall 2026</p>
-          <h3 style="font-family: var(--font-display); font-weight: 600; font-size: 1.15rem; letter-spacing: -0.01em; margin: 0 0 0.5rem; color: var(--text);">ATLS 4519 / 5519 &mdash; Learn Vibe Build</h3>
+          <h3 style="font-family: var(--font-display); font-weight: 600; font-size: 1.15rem; letter-spacing: -0.01em; margin: 0 0 0.5rem; color: var(--text);">ATLS 4519 &mdash; Learn Vibe Build</h3>
           <p style="margin: 0; color: var(--text-secondary); line-height: 1.6;">Aaron is teaching a semester-long version of this work at CU Boulder's ATLAS Institute in Fall 2026 &mdash; same lineage, longer arc. Distinct from the cohort but part of the same practice.</p>
           <p style="margin: 0.75rem 0 0; color: var(--accent); font-weight: 500; font-size: 0.9rem;">Course details &amp; how to register &rarr;</p>
         </a>
